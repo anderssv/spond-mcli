@@ -21,8 +21,13 @@ Spond is a platform for managing sports teams, events, and communication. And ca
 > I use Claude for almost everything.
 > I have much better results when using Claude Code instead of Claude Desktop. 
 > Your mileage may vary. 
-> I also use a GMail MCP server because I get school information on mails, so then I can get a complete picture for 
+> I also use a GMail MCP server because I get school information on mails, so I can get a complete picture for 
 > the next weeks etc.
+
+> [!TIP]
+> The MCP server hasn't been tested by me in a while, but I recommend using the CLI.
+> Install it globally with `npm install -g .` and try telling your agent something like:
+> *"Analyze the spond CLI and add info about it to the project knowledge."*
 
 ## Features
 The server is (for now) read-only and provides access to Spond's core data structures:
