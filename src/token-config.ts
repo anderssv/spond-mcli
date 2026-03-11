@@ -202,7 +202,7 @@ export function createMockTokenConfig(): TokenConfig {
   };
 }
 
-export const DEFAULT_TOKEN_FILE = join(homedir(), 'spond-token.txt');
+export const DEFAULT_TOKEN_FILE = join(homedir(), '.config', 'spond', 'token');
 
 export function getTokenWithFileFallback(tokenFilePath: string = DEFAULT_TOKEN_FILE): TokenConfig {
   try {
@@ -224,6 +224,6 @@ export function getTokenWithFileFallback(tokenFilePath: string = DEFAULT_TOKEN_F
   }
 
   throw new Error(
-    'No SPOND_TOKEN found. Set SPOND_TOKEN environment variable or create ~/spond-token.txt'
+    'No SPOND_TOKEN found. Set SPOND_TOKEN environment variable or run "spond login" to save token to ~/.config/spond/token'
   );
 }
