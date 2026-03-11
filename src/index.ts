@@ -24,7 +24,7 @@ class SpondMcpServer {
   constructor(spondClient?: ISpondClient) {
     this.server = new Server(
       {
-        name: 'spond-mcp-server',
+        name: 'spond-mcli',
         version: '1.0.0',
       },
       {
@@ -160,7 +160,7 @@ class SpondMcpServer {
     };
     
     await this.server.connect(transport);
-    console.error('Spond MCP server running on stdio');
+    console.error('Spond MCLI server running on stdio');
   }
 
 }

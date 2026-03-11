@@ -127,10 +127,10 @@ describe('Startup and Configuration Tests', () => {
       expect(response?.result).toBeDefined();
       expect(response.result.protocolVersion).toBe('2024-11-05');
       expect(response.result.serverInfo).toBeDefined();
-      expect(response.result.serverInfo.name).toBe('spond-mcp-server');
+      expect(response.result.serverInfo.name).toBe('spond-mcli');
       
       // Check that the startup message was logged to stderr
-      expect(result.stderr).toContain('Spond MCP server running on stdio');
+      expect(result.stderr).toContain('Spond MCLI server running on stdio');
     });
 
   });

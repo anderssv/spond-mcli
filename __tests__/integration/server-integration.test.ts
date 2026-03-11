@@ -225,6 +225,6 @@ describe('SpondMcpServer Error Handling Tests', () => {
     // Test that run method sets up error handler
     await server.run();
     
-    expect(consoleSpy).toHaveBeenCalledWith('Spond MCP server running on stdio');
+    expect(consoleSpy).toHaveBeenCalledWith('Spond MCLI server running on stdio');
   });
 });

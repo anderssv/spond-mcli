@@ -1,6 +1,6 @@
-# Spond MCP Server
+# Spond MCLI
 
-This MCP server lets you access Spond's data from an LLM. It is currently a read-only server.
+MCP server and CLI for accessing Spond's data from an LLM or the command line. Currently read-only.
 
 This is a vibe coded project. The code is written almost entirely by AI agents, with human guidance and review.
 
@@ -33,7 +33,7 @@ Spond is a platform for managing sports teams, events, and communication. And ca
 
 1. Clone and build:
    ```bash
-   git clone <repo-url> && cd spond-mcp
+   git clone <repo-url> && cd spond-mcli
    npm install
    npm run build
    ```
@@ -130,8 +130,8 @@ Add to your MCP client configuration (e.g., Claude Desktop):
   "mcpServers": {
     "spond": {
       "command": "node",
-      "args": ["/path/to/spond-mcp/dist/index.js"],
-      "cwd": "/path/to/spond-mcp",
+      "args": ["/path/to/spond-mcli/dist/index.js"],
+      "cwd": "/path/to/spond-mcli",
       "env": {
         "SPOND_TOKEN": "ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5..."
       }
@@ -146,8 +146,8 @@ For testing with mock data, use:
   "mcpServers": {
     "spond": {
       "command": "node",
-      "args": ["/path/to/spond-mcp/dist/index.js"],
-      "cwd": "/path/to/spond-mcp",
+      "args": ["/path/to/spond-mcli/dist/index.js"],
+      "cwd": "/path/to/spond-mcli",
       "env": {
         "SPOND_TOKEN": "mock-data"
       }
@@ -162,7 +162,7 @@ For testing with mock data, use:
 # This will add to the current directory (.claude directory), so you will have to return to this directory
 # to use. This is different in Claude Desktop.
 # Recommend using absolute path to avoid issues.
-$ claude mcp add spond-mcp node /path/to/spond-mcp/dist/index.js -e SPOND_TOKEN="your-token-here"
+$ claude mcp add spond-mcli node /path/to/spond-mcli/dist/index.js -e SPOND_TOKEN="your-token-here"
 ```
 
 ## Available Tools
