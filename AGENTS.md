@@ -131,7 +131,7 @@ All code changes in this project follow TDD. Use the `tdd` skill for the full pr
 - Use the Playwright MCP to inspect the https://spond.com/client website for visuals, features and network requests.
 - Test changes to the code by launching the MCP server in a separate process and passing it commands.
 - If you have to reload the MCP server, stop and ask the user to reload.
-- If you need to verify api changes, you can create example curl commands in the `./examples/` directory.
+- If you need to verify api changes, use the Playwright MCP to inspect network traffic at https://spond.com/client.
 
 ### Reverse Engineering the Spond API
 The Spond API can be reverse engineered by opening a Playwright browser at https://spond.com/client, navigating around and looking at the network traffic. The page requires login, so stop and let the user authenticate if not already logged in.
@@ -143,7 +143,7 @@ The Spond API can be reverse engineered by opening a Playwright browser at https
 - `__tests__/helpers/` - Test utilities, object mothers, fake clients
 
 ### Examples and Testing
-Example curl commands and debugging scripts have been moved to `./examples/` directory with tokens replaced by placeholders for future debugging sessions.
+Use the Playwright MCP to inspect network traffic at https://spond.com/client for API debugging and reverse engineering.
 
 ### Commands
 
@@ -169,7 +169,7 @@ npm start
 # Start server with mock data
 npm run start:mock
 
-# Start with token from ~/spond-token.txt
+# Start with token from ~/.config/spond/token
 npm run start:with-token
 
 # CLI - run a single command against the API

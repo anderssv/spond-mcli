@@ -123,7 +123,7 @@
 ### ✅ **COMPLETED** - Simplified Token-Based Testing
 - **Enable tests to run against both real API and mocked data using SPOND_TOKEN**
   - ✅ Simplified testing approach: tests default to mock mode when no SPOND_TOKEN is set
-  - ✅ Created unified `test:integration` command that reads from `~/spond-token.txt` for real API testing
+  - ✅ Created unified `test:integration` command that reads from `~/.config/spond/token` for real API testing
   - ✅ Updated token configuration to default to mock mode instead of throwing errors
   - ✅ Removed complex test mode configuration in favor of simple token-based approach
   - ✅ Consolidated integration test commands into single `test:integration` command

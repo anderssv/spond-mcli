@@ -18,7 +18,7 @@
 - `decodeTokenFromLocalStorage(rawValue)` — pure function, base64-decodes the localStorage value
 - `performLogin(tokenFilePath)` — launches headed Playwright, navigates to `/client`, polls localStorage every 1s for up to 2 minutes
 - `login` CLI command handled before token retrieval in `cli.ts` (doesn't need SpondCore)
-- Token saved to `~/spond-token.txt` via `DEFAULT_TOKEN_FILE`
+- Token saved to `~/.config/spond/token` via `DEFAULT_TOKEN_FILE`
 
 ### Decisions
 - Polling (1s interval) instead of network interception — simpler, works across redirects

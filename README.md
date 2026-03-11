@@ -43,14 +43,14 @@ Spond is a platform for managing sports teams, events, and communication. And ca
    npx spond login
    ```
    This opens a browser window. Log in with your Spond credentials and the CLI will
-   automatically extract and save your token to `~/spond-token.txt`.
+   automatically extract and save your token to `~/.config/spond/token`.
 
 3. Verify it works:
    ```bash
    npx spond upcoming
    ```
 
-That's it. The CLI and MCP server both read the token from `~/spond-token.txt` automatically.
+That's it. The CLI and MCP server both read the token from `~/.config/spond/token` automatically.
 If you want to use the CLI globally, run `npm install -g .` and use `spond` directly.
 
 ## Features
@@ -103,7 +103,7 @@ The easiest way to get your token is with the CLI:
 npx spond login
 ```
 
-This opens a browser, you log in, and the token is saved to `~/spond-token.txt`.
+This opens a browser, you log in, and the token is saved to `~/.config/spond/token`.
 Both the CLI and MCP server read from this file automatically.
 
 Alternatively, you can get the token manually:

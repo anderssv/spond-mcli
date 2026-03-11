@@ -7,7 +7,7 @@
 
 ## Completed
 
-- CLI login command: Opens Playwright browser at spond.com/client, polls localStorage for token after user authenticates, base64-decodes and saves JWT to `~/spond-token.txt`
+- CLI login command: Opens Playwright browser at spond.com/client, polls localStorage for token after user authenticates, base64-decodes and saves JWT to `~/.config/spond/token`
 
 - Extract typed public methods from `processToolCall` (getGroups, getEvents, getEventById, getUpcomingEvents, searchEvents, getEventsByGroup, getPosts, getPostById, searchPosts, getPostsByGroup, getAttachment, getGroupFiles, getGroupFile, convertPdfToText, convertDocxToText, acceptEvent, declineEvent)
 - Refactor CLI to use typed `CliCommand` discriminated union instead of MCP tool name strings

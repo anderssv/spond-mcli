@@ -15,7 +15,6 @@ build/
 .env.test.local
 .env.production.local
 spond-token.txt
-examples/group-id.txt
 
 # IDE files
 .vscode/

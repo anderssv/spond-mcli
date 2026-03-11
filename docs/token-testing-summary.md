@@ -9,7 +9,7 @@
 
 ### **Clean Test Commands**
 - **`npm test`**: Runs all tests in mock mode (fast, no API calls, no token required)
-- **`npm run test:integration`**: Reads real token from `~/spond-token.txt` and runs all integration tests
+- **`npm run test:integration`**: Reads real token from `~/.config/spond/token` and runs all integration tests
 
 ### **Separated Test Types**
 - **Regular Tests**: Always use mock data, focus on business logic and structure
@@ -51,7 +51,7 @@ npm run start:with-token
 - **Clean console output** with helpful messages about token requirements
 
 ### Integration Tests Work with Real Tokens ✅  
-- **Real token detection** works correctly from `~/spond-token.txt`
+- **Real token detection** works correctly from `~/.config/spond/token`
 - **Tests attempt real API calls** when token is available
 - **Proper error handling** for mock/real environment conflicts
 
@@ -106,7 +106,7 @@ beforeAll(() => {
 - No token setup required for basic development
 
 ### For Integration Testing
-1. Put your real Spond token in `~/spond-token.txt`
+1. Put your real Spond token in `~/.config/spond/token`
 2. Run `npm run test:integration` to test against real API
 3. Run `npm run start:with-token` to start server with real API
 
