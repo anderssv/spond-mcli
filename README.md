@@ -1,0 +1,174 @@
+# Spond MCP Server
+
+This MCP server lets you access Spond's data from an LLM. It is currently a read-only server.
+
+This is a vibe coded project. The code is written almost entirely by AI agents, with human guidance and review.
+
+Spond is a platform for managing sports teams, events, and communication. And can be accessed at https://spond.com.
+
+> [!IMPORTANT]
+> This is not officially supported by Spond, but is built using their public API.
+> It is intended for personal use and experimentation with LLMs.
+> Changes to the Spond API may break this server in the future.
+
+> [!WARNING]  
+> Using MCP servers with LLMs can lead to unexpected behavior.
+> Any message in Spond can trigger the LLM to do actions,
+> like mailing everything to someone (if you also have the Gmail MCP).
+> Make sure you understand the risks before using this MCP server.
+
+> [!NOTE]
+> I use Claude for almost everything.
+> I have much better results when using Claude Code instead of Claude Desktop. 
+> Your mileage may vary. 
+> I also use a GMail MCP server because I get school information on mails, so then I can get a complete picture for 
+> the next weeks etc.
+
+## Features
+The server is (for now) read-only and provides access to Spond's core data structures:
+
+- 🔍 **Event Retrieval**: Get Spond events with flexible filtering options
+- 📅 **Upcoming Events**: Easily fetch events happening in the future
+- 🔎 **Search**: Search events by keywords in title, description, or group name
+- 👥 **Group Filtering**: Get events from specific groups
+- 📊 **Rich Data**: Access detailed event information including attendees, locations, and metadata
+- 🛡️ **Type Safety**: Full TypeScript support with comprehensive type definitions
+
+## Prerequisites
+
+- Node.js 18 or higher
+- A valid Spond account with API access
+- Bearer token for authentication
+- Accessing attachments requires:
+  - pdftotext installed for PDF parsing (usually part of poppler-utils package)
+  - docx2txt installed for DOCX parsing
+
+## Installation
+
+1. Clone or download this repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Build the TypeScript code:
+   ```bash
+   npm run build
+   ```
+
+## Authentication Setup
+
+The server requires the `SPOND_TOKEN` environment variable to be set. This variable has three possible modes:
+
+- **Real API mode**: Set `SPOND_TOKEN` to your actual Spond Bearer token (no "Bearer " prefix needed)
+- **Mock data mode**: Set `SPOND_TOKEN="mock-data"` to use mock data for testing
+- **Error mode**: If `SPOND_TOKEN` is not set or empty, the server will fail with a clear error message
+
+> [!IMPORTANT]
+> The server will no longer default to mock mode when no token is provided. You must explicitly set `SPOND_TOKEN="mock-data"` for testing.
+
+### Getting Your Token
+
+1. Log into Spond web client (https://spond.com/client)
+2. Open browser developer tools (F12)
+3. Go to Network tab and refresh the page
+4. Find any API request to `api.spond.com`
+5. Copy the Bearer token from the Authorization header
+6. Set it in your MCP config (see below)
+
+## Usage
+
+### Requirements
+- Ensure you have the `SPOND_TOKEN` environment variable set as described above
+- It seems to prefer downloading files to /tmp so make sure your agent has write access to that directory
+
+### As MCP Server
+
+Add to your MCP client configuration (e.g., Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "spond": {
+      "command": "node",
+      "args": ["/path/to/spond-mcp/dist/index.js"],
+      "cwd": "/path/to/spond-mcp",
+      "env": {
+        "SPOND_TOKEN": "ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5..."
+      }
+    }
+  }
+}
+```
+
+For testing with mock data, use:
+```json
+{
+  "mcpServers": {
+    "spond": {
+      "command": "node",
+      "args": ["/path/to/spond-mcp/dist/index.js"],
+      "cwd": "/path/to/spond-mcp",
+      "env": {
+        "SPOND_TOKEN": "mock-data"
+      }
+    }
+  }
+}
+```
+
+### In Claude Code
+
+```bash
+# This will add to the current directory (.claude directory), so you will have to return to this directory
+# to use. This is different in Claude Desktop.
+# Recommend using absolute path to avoid issues.
+$ claude mcp add spond-mcp node /path/to/spond-mcp/dist/index.js -e SPOND_TOKEN="your-token-here"
+```
+
+## Available Tools
+
+The MCP server provides comprehensive tools for accessing Spond data,
+including document conversion capabilities for PDF and DOCX files.
+For detailed information about all available tools and their parameters,
+see the tool definitions in [src/spond-core.ts](src/spond-core.ts).
+
+## Security Notes
+
+- Store your token securely and don't commit it to version control
+- Tokens can expire and may need periodic renewal
+- Never include your token directly in MCP configuration files that might be shared
+
+## Development & Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with coverage report
+npm run test:coverage
+
+# Run integration tests with real API (requires SPOND_TOKEN)
+npm run test:integration
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+### Mock vs Real API Testing
+
+- **Default Mode**: Tests use mock data (no token required)
+- **Integration Mode**: Tests against real Spond API (requires `SPOND_TOKEN`)
+- **Automatic Fallback**: Real API tests gracefully skip when no token is available
+
+```bash
+# Mock mode (default)
+npm test
+
+npm run test:integration
+```
+
+## License
+
+MIT License - see LICENSE file for details.

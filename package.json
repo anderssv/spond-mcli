@@ -1,0 +1,54 @@
+{
+  "name": "spond-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Spond API integration",
+  "main": "dist/index.js",
+  "bin": {
+    "spond": "dist/cli.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "start": "node dist/index.js",
+    "start:mock": "SPOND_MOCK_MODE=true node dist/index.js",
+    "start:with-token": "SPOND_TOKEN=\"$(cat ~/spond-token.txt 2>/dev/null)\" node dist/index.js",
+    "cli": "node dist/cli.js",
+    "cli:mock": "SPOND_TOKEN=mock-data node dist/cli.js",
+    "dev": "tsc --watch & node --watch dist/index.js",
+    "test": "jest",
+    "test:integration": "SPOND_TOKEN=\"$(cat ~/spond-token.txt 2>/dev/null)\" jest --testPathPatterns='integration|real-api' --testPathIgnorePatterns 'NOMATCH'",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "spond",
+    "api",
+    "server"
+  ],
+  "author": "Anders Sveen",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "docopt": "^0.6.2",
+    "dotenv": "^17.3.1",
+    "fs": "^0.0.1-security",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/docopt": "^0.6.37",
+    "@types/dotenv": "^6.1.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.4.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.0",
+    "@typescript-eslint/parser": "^8.57.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.14.0"
+  }
+}
