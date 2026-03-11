@@ -226,6 +226,13 @@ describe('CLI argument parsing', () => {
     });
   });
 
+  // Login command
+  it('"login" maps to login command', () => {
+    const result = parseArgs(['login']);
+
+    expect(result).toEqual({ command: 'login' });
+  });
+
   // Error cases
   it('unknown command returns null', () => {
     const result = parseArgs(['nonexistent']);

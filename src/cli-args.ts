@@ -18,7 +18,8 @@ export type CliCommand =
   | { command: 'acceptEvent'; eventId: string; memberId: string }
   | { command: 'declineEvent'; eventId: string; memberId: string }
   | { command: 'convertPdfToText'; inputPath: string; outputPath: string }
-  | { command: 'convertDocxToText'; inputPath: string; outputPath: string };
+  | { command: 'convertDocxToText'; inputPath: string; outputPath: string }
+  | { command: 'login' };
 
 const USAGE = `\
 Spond CLI - Command line interface for the Spond API.
@@ -41,6 +42,7 @@ Usage:
   spond decline-event <eventId> <memberId>
   spond pdf-to-text <inputPath> <outputPath>
   spond docx-to-text <inputPath> <outputPath>
+  spond login
 
 Options:
   --max <n>                  Maximum number of results
@@ -208,6 +210,10 @@ export function parseArgs(argv: string[]): CliCommand | null {
       inputPath: args['<inputPath>'] as string,
       outputPath: args['<outputPath>'] as string
     };
+  }
+
+  if (args['login']) {
+    return { command: 'login' };
   }
 
   return null;

@@ -5,8 +5,11 @@ import { SpondCore, CoreError } from './spond-core.js';
 import { getTokenWithFileFallback } from './token-config.js';
 import { SpondClient } from './spond-client.js';
 import { SpondClientFake } from './spond-client-fake.js';
+import { performLogin } from './login.js';
 
-async function executeCommand(core: SpondCore, cmd: CliCommand): Promise<{ data: unknown; notFound?: boolean }> {
+type ApiCommand = Exclude<CliCommand, { command: 'login' }>;
+
+async function executeCommand(core: SpondCore, cmd: ApiCommand): Promise<{ data: unknown; notFound?: boolean }> {
   switch (cmd.command) {
     case 'getEvents':
       return { data: await core.getEvents(cmd.params) };
@@ -58,6 +61,16 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  if (parsed.command === 'login') {
+    try {
+      await performLogin();
+    } catch (error) {
+      console.error(`Login failed: ${(error as Error).message}`);
+      process.exit(1);
+    }
+    return;
+  }
+
   const config = getTokenWithFileFallback();
   const client = config.useMockData
     ? SpondClientFake.withMockData()
@@ -66,7 +79,7 @@ async function main(): Promise<void> {
   const core = new SpondCore(client);
 
   try {
-    const result = await executeCommand(core, parsed);
+    const result = await executeCommand(core, parsed as ApiCommand);
     if (result.notFound) {
       console.error('Not found');
       process.exit(1);

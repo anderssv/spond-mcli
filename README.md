@@ -29,6 +29,30 @@ Spond is a platform for managing sports teams, events, and communication. And ca
 > Install it globally with `npm install -g .` and try telling your agent something like:
 > *"Analyze the spond CLI and add info about it to the project knowledge."*
 
+## Getting Started
+
+1. Clone and build:
+   ```bash
+   git clone <repo-url> && cd spond-mcp
+   npm install
+   npm run build
+   ```
+
+2. Log in to Spond:
+   ```bash
+   npx spond login
+   ```
+   This opens a browser window. Log in with your Spond credentials and the CLI will
+   automatically extract and save your token to `~/spond-token.txt`.
+
+3. Verify it works:
+   ```bash
+   npx spond upcoming
+   ```
+
+That's it. The CLI and MCP server both read the token from `~/spond-token.txt` automatically.
+If you want to use the CLI globally, run `npm install -g .` and use `spond` directly.
+
 ## Features
 The server is (for now) read-only and provides access to Spond's core data structures:
 
@@ -72,6 +96,17 @@ The server requires the `SPOND_TOKEN` environment variable to be set. This varia
 > The server will no longer default to mock mode when no token is provided. You must explicitly set `SPOND_TOKEN="mock-data"` for testing.
 
 ### Getting Your Token
+
+The easiest way to get your token is with the CLI:
+
+```bash
+npx spond login
+```
+
+This opens a browser, you log in, and the token is saved to `~/spond-token.txt`.
+Both the CLI and MCP server read from this file automatically.
+
+Alternatively, you can get the token manually:
 
 1. Log into Spond web client (https://spond.com/client)
 2. Open browser developer tools (F12)
