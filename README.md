@@ -19,10 +19,8 @@ Spond is a platform for managing sports teams, events, and communication. And ca
 
 > [!NOTE]
 > I use Claude for almost everything.
-> I have much better results when using Claude Code instead of Claude Desktop. 
+> I have much better results when using Claude Code (prefer CLI) instead of Claude Desktop (needs MCP). 
 > Your mileage may vary. 
-> I also use a GMail MCP server because I get school information on mails, so I can get a complete picture for 
-> the next weeks etc.
 
 > [!TIP]
 > The MCP server hasn't been tested by me in a while, but I recommend using the CLI.
