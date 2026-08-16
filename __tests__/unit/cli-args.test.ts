@@ -233,6 +233,13 @@ describe('CLI argument parsing', () => {
     expect(result).toEqual({ command: 'login' });
   });
 
+  // Agent help command
+  it('"--agent-help" maps to agentHelp command', () => {
+    const result = parseArgs(['--agent-help']);
+
+    expect(result).toEqual({ command: 'agentHelp' });
+  });
+
   // Error cases
   it('unknown command returns null', () => {
     const result = parseArgs(['nonexistent']);

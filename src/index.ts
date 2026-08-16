@@ -11,7 +11,7 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { SpondCore, CoreError, CoreErrorCode, ToolCallResult, ResourceReadResult, ToolCallResultType } from './spond-core.js';
-import { getTokenAndMockMode, TokenConfig } from './token-config.js';
+import { getTokenAndMockMode } from './token-config.js';
 import { ISpondClient } from './spond-client-interface.js';
 import { SpondClient } from './spond-client.js';
 import { SpondClientFake } from './spond-client-fake.js';

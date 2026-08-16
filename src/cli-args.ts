@@ -19,7 +19,8 @@ export type CliCommand =
   | { command: 'declineEvent'; eventId: string; memberId: string }
   | { command: 'convertPdfToText'; inputPath: string; outputPath: string }
   | { command: 'convertDocxToText'; inputPath: string; outputPath: string }
-  | { command: 'login' };
+  | { command: 'login' }
+  | { command: 'agentHelp' };
 
 const USAGE = `\
 Spond CLI - Command line interface for the Spond API.
@@ -43,6 +44,11 @@ Usage:
   spond pdf-to-text <inputPath> <outputPath>
   spond docx-to-text <inputPath> <outputPath>
   spond login
+  spond --agent-help
+
+For AI agents:
+  If you are an AI agent using this CLI, run 'spond --agent-help' for a
+  condensed usage guide (auth, output format, accept/decline workflow).
 
 Options:
   --max <n>                  Maximum number of results
@@ -214,6 +220,10 @@ export function parseArgs(argv: string[]): CliCommand | null {
 
   if (args['login']) {
     return { command: 'login' };
+  }
+
+  if (args['--agent-help']) {
+    return { command: 'agentHelp' };
   }
 
   return null;

@@ -7,7 +7,28 @@ import { SpondClient } from './spond-client.js';
 import { SpondClientFake } from './spond-client-fake.js';
 import { performLogin } from './login.js';
 
-type ApiCommand = Exclude<CliCommand, { command: 'login' }>;
+const AGENT_HELP = `\
+Spond CLI - Agent Guide
+
+Output: every command prints JSON to stdout on success. Errors go to
+stderr and the process exits non-zero.
+
+Auth: reads SPOND_TOKEN, falling back to the token file at
+~/.config/spond/token. Run 'spond login' to populate that file via a
+one-time browser login, or set SPOND_TOKEN="mock-data" for mock data.
+
+Accept/decline an event:
+  1. spond upcoming
+  2. spond event <eventId> --include-members
+  3. Find the memberId in recipients.group.members[] for the person
+     you want to respond for (memberId differs per group).
+  4. spond accept-event <eventId> <memberId>
+     spond decline-event <eventId> <memberId>
+
+Run 'spond --help' for the full command and flag reference.
+`;
+
+type ApiCommand = Exclude<CliCommand, { command: 'login' } | { command: 'agentHelp' }>;
 
 async function executeCommand(core: SpondCore, cmd: ApiCommand): Promise<{ data: unknown; notFound?: boolean }> {
   switch (cmd.command) {
@@ -59,6 +80,11 @@ async function main(): Promise<void> {
   if (!parsed) {
     console.error(USAGE);
     process.exit(1);
+  }
+
+  if (parsed.command === 'agentHelp') {
+    console.log(AGENT_HELP);
+    return;
   }
 
   if (parsed.command === 'login') {

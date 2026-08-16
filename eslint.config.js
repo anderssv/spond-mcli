@@ -15,7 +15,7 @@ export default [
       "@typescript-eslint": tsPlugin
     },
     rules: {
-      "@typescript-eslint/no-unused-vars": "error",
+      "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
       "@typescript-eslint/no-explicit-any": "off",
       "no-console": ["warn", { "allow": ["error"] }],
       "prefer-const": "error",

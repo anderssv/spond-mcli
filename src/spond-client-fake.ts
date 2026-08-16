@@ -110,7 +110,7 @@ export class SpondClientFake implements ISpondClient {
     return this.events.find(e => e.id === eventId) || null;
   }
 
-  async getUpcomingEvents(maxResults: number = 20, addProfileInfo: boolean = false): Promise<SpondEvent[]> {
+  async getUpcomingEvents(maxResults: number = 20, _addProfileInfo: boolean = false): Promise<SpondEvent[]> {
     this.throwIfShouldFail();
 
     const now = new Date();
@@ -238,11 +238,11 @@ export class SpondClientFake implements ISpondClient {
     return [...this.groups];
   }
 
-  async sendEventResponse(eventId: string, memberId: string, accepted: boolean): Promise<void> {
+  async sendEventResponse(_eventId: string, _memberId: string, _accepted: boolean): Promise<void> {
     this.throwIfShouldFail();
   }
 
-  async fetchAttachmentToFile(url: string, filePath: string, groupId: string): Promise<string> {
+  async fetchAttachmentToFile(url: string, filePath: string, _groupId: string): Promise<string> {
     this.throwIfShouldFail();
 
     const dir = dirname(filePath);

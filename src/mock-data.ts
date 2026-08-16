@@ -231,7 +231,7 @@ export const MOCK_EVENTS: SpondEvent[] = new Proxy([] as SpondEvent[], {
     }
     return prop in _mockEventsCache;
   },
-  ownKeys(target) {
+  ownKeys(_target) {
     if (!_mockEventsCache) {
       _mockEventsCache = createMockEvents();
     }
