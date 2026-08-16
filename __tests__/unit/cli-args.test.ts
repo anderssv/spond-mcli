@@ -240,6 +240,13 @@ describe('CLI argument parsing', () => {
     expect(result).toEqual({ command: 'agentHelp' });
   });
 
+  // MCP server command
+  it('"mcp" maps to mcp command', () => {
+    const result = parseArgs(['mcp']);
+
+    expect(result).toEqual({ command: 'mcp' });
+  });
+
   // Error cases
   it('unknown command returns null', () => {
     const result = parseArgs(['nonexistent']);

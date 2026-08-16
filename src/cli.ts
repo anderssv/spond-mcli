@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { parseArgs, USAGE, CliCommand } from './cli-args.js';
 import { SpondCore, CoreError } from './spond-core.js';
 import { getTokenWithFileFallback } from './token-config.js';
@@ -14,21 +17,23 @@ Output: every command prints JSON to stdout on success. Errors go to
 stderr and the process exits non-zero.
 
 Auth: reads SPOND_TOKEN, falling back to the token file at
-~/.config/spond/token. Run 'spond login' to populate that file via a
-one-time browser login, or set SPOND_TOKEN="mock-data" for mock data.
+~/.config/spond/token. Run 'spond-mcli login' to populate that file via
+a one-time browser login, or set SPOND_TOKEN="mock-data" for mock data.
 
 Accept/decline an event:
-  1. spond upcoming
-  2. spond event <eventId> --include-members
+  1. spond-mcli upcoming
+  2. spond-mcli event <eventId> --include-members
   3. Find the memberId in recipients.group.members[] for the person
      you want to respond for (memberId differs per group).
-  4. spond accept-event <eventId> <memberId>
-     spond decline-event <eventId> <memberId>
+  4. spond-mcli accept-event <eventId> <memberId>
+     spond-mcli decline-event <eventId> <memberId>
 
-Run 'spond --help' for the full command and flag reference.
+MCP server: run 'spond-mcli mcp' to start it over stdio.
+
+Run 'spond-mcli --help' for the full command and flag reference.
 `;
 
-type ApiCommand = Exclude<CliCommand, { command: 'login' } | { command: 'agentHelp' }>;
+type ApiCommand = Exclude<CliCommand, { command: 'login' } | { command: 'agentHelp' } | { command: 'mcp' }>;
 
 async function executeCommand(core: SpondCore, cmd: ApiCommand): Promise<{ data: unknown; notFound?: boolean }> {
   switch (cmd.command) {
@@ -85,6 +90,15 @@ async function main(): Promise<void> {
   if (parsed.command === 'agentHelp') {
     console.log(AGENT_HELP);
     return;
+  }
+
+  if (parsed.command === 'mcp') {
+    const indexJsPath = join(dirname(fileURLToPath(import.meta.url)), 'index.js');
+    const child = spawn(process.execPath, [indexJsPath], { stdio: 'inherit' });
+    const exitCode = await new Promise<number>((resolve) => {
+      child.on('exit', (code) => resolve(code ?? 1));
+    });
+    process.exit(exitCode);
   }
 
   if (parsed.command === 'login') {

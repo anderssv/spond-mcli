@@ -4,7 +4,7 @@
   "description": "MCP server and CLI for Spond API integration",
   "main": "dist/index.js",
   "bin": {
-    "spond": "dist/cli.js"
+    "spond-mcli": "dist/cli.js"
   },
   "type": "module",
   "scripts": {

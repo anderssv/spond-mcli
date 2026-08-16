@@ -36,18 +36,18 @@ Spond is a platform for managing sports teams, events, and communication. And ca
    npm install -g .
    ```
    This package isn't published to npm, so it must be installed from a local
-   clone — `npx spond` won't work.
+   clone — `npx spond-mcli` won't work.
 
 2. Log in to Spond:
    ```bash
-   spond login
+   spond-mcli login
    ```
    This opens a browser window. Log in with your Spond credentials and the CLI will
    automatically extract and save your token to `~/.config/spond/token`.
 
 3. Verify it works:
    ```bash
-   spond upcoming
+   spond-mcli upcoming
    ```
 
 That's it. The CLI and MCP server both read the token from `~/.config/spond/token` automatically.
@@ -99,7 +99,7 @@ The server requires the `SPOND_TOKEN` environment variable to be set. This varia
 The easiest way to get your token is with the CLI:
 
 ```bash
-spond login
+spond-mcli login
 ```
 
 This opens a browser, you log in, and the token is saved to `~/.config/spond/token`.
@@ -122,8 +122,41 @@ Alternatively, you can get the token manually:
 
 ### As MCP Server
 
+The preferred way to launch the MCP server is `spond-mcli mcp`, using the globally
+installed CLI (see Getting Started above). It reads the token from
+`~/.config/spond/token` or `SPOND_TOKEN` automatically, same as the CLI.
+
 Add to your MCP client configuration (e.g., Claude Desktop):
 
+```json
+{
+  "mcpServers": {
+    "spond": {
+      "command": "spond-mcli",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+To use mock data, or a token not already saved to `~/.config/spond/token`,
+set `SPOND_TOKEN` explicitly:
+```json
+{
+  "mcpServers": {
+    "spond": {
+      "command": "spond-mcli",
+      "args": ["mcp"],
+      "env": {
+        "SPOND_TOKEN": "mock-data"
+      }
+    }
+  }
+}
+```
+
+If you haven't installed the CLI globally, you can instead run it directly from
+a local clone with `node`:
 ```json
 {
   "mcpServers": {
@@ -139,28 +172,14 @@ Add to your MCP client configuration (e.g., Claude Desktop):
 }
 ```
 
-For testing with mock data, use:
-```json
-{
-  "mcpServers": {
-    "spond": {
-      "command": "node",
-      "args": ["/path/to/spond-mcli/dist/index.js"],
-      "cwd": "/path/to/spond-mcli",
-      "env": {
-        "SPOND_TOKEN": "mock-data"
-      }
-    }
-  }
-}
-```
-
 ### In Claude Code
 
 ```bash
-# This will add to the current directory (.claude directory), so you will have to return to this directory
-# to use. This is different in Claude Desktop.
-# Recommend using absolute path to avoid issues.
+# Preferred, once the CLI is installed globally:
+$ claude mcp add spond-mcli spond-mcli mcp -e SPOND_TOKEN="your-token-here"
+
+# Or from a local clone without a global install (adds to the current directory's
+# .claude config, so you'll need to be in this directory to use it):
 $ claude mcp add spond-mcli node /path/to/spond-mcli/dist/index.js -e SPOND_TOKEN="your-token-here"
 ```
 

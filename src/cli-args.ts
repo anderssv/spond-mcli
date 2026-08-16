@@ -20,35 +20,42 @@ export type CliCommand =
   | { command: 'convertPdfToText'; inputPath: string; outputPath: string }
   | { command: 'convertDocxToText'; inputPath: string; outputPath: string }
   | { command: 'login' }
-  | { command: 'agentHelp' };
+  | { command: 'agentHelp' }
+  | { command: 'mcp' };
 
 const USAGE = `\
 Spond CLI - Command line interface for the Spond API.
 
 Usage:
-  spond events [--max <n>] [--include-comments] [--include-hidden] [--order <order>] [--group-id <id>] [--min-end-timestamp <ts>] [--max-end-timestamp <ts>]
-  spond event <eventId> [--include-members]
-  spond upcoming [--max <n>]
-  spond search-events <searchTerm> [--max <n>]
-  spond events-by-group <groupName> [--max <n>]
-  spond posts [--max <n>] [--type <type>] [--group-id <id>] [--include-read-status]
-  spond post <postId>
-  spond search-posts <searchTerm> [--max <n>]
-  spond posts-by-group <groupName> [--max <n>]
-  spond groups
-  spond group-files <groupId>
-  spond group-file <fileUrl> <groupId> <filePath>
-  spond attachment <url> <groupId> <filePath>
-  spond accept-event <eventId> <memberId>
-  spond decline-event <eventId> <memberId>
-  spond pdf-to-text <inputPath> <outputPath>
-  spond docx-to-text <inputPath> <outputPath>
-  spond login
-  spond --agent-help
+  spond-mcli events [--max <n>] [--include-comments] [--include-hidden] [--order <order>] [--group-id <id>] [--min-end-timestamp <ts>] [--max-end-timestamp <ts>]
+  spond-mcli event <eventId> [--include-members]
+  spond-mcli upcoming [--max <n>]
+  spond-mcli search-events <searchTerm> [--max <n>]
+  spond-mcli events-by-group <groupName> [--max <n>]
+  spond-mcli posts [--max <n>] [--type <type>] [--group-id <id>] [--include-read-status]
+  spond-mcli post <postId>
+  spond-mcli search-posts <searchTerm> [--max <n>]
+  spond-mcli posts-by-group <groupName> [--max <n>]
+  spond-mcli groups
+  spond-mcli group-files <groupId>
+  spond-mcli group-file <fileUrl> <groupId> <filePath>
+  spond-mcli attachment <url> <groupId> <filePath>
+  spond-mcli accept-event <eventId> <memberId>
+  spond-mcli decline-event <eventId> <memberId>
+  spond-mcli pdf-to-text <inputPath> <outputPath>
+  spond-mcli docx-to-text <inputPath> <outputPath>
+  spond-mcli login
+  spond-mcli mcp
+  spond-mcli --agent-help
 
 For AI agents:
-  If you are an AI agent using this CLI, run 'spond --agent-help' for a
+  If you are an AI agent using this CLI, run 'spond-mcli --agent-help' for a
   condensed usage guide (auth, output format, accept/decline workflow).
+
+MCP Server:
+  Run 'spond-mcli mcp' to start the MCP server over stdio. This is the
+  preferred way to launch it — point your MCP client's command at
+  'spond-mcli' with args ['mcp'] instead of invoking dist/index.js directly.
 
 Options:
   --max <n>                  Maximum number of results
@@ -70,12 +77,12 @@ Accept/Decline an event:
   Note: A person's memberId varies per group — the same person will
   have different memberIds in different groups.
 
-  1. Find the event:     spond upcoming
-  2. Get member details:  spond event <eventId> --include-members
+  1. Find the event:     spond-mcli upcoming
+  2. Get member details:  spond-mcli event <eventId> --include-members
   3. Find the memberId in recipients.group.members[] for the person
      you want to respond for.
-  4. Accept or decline:   spond accept-event <eventId> <memberId>
-                          spond decline-event <eventId> <memberId>
+  4. Accept or decline:   spond-mcli accept-event <eventId> <memberId>
+                          spond-mcli decline-event <eventId> <memberId>
 `;
 
 export { USAGE };
@@ -224,6 +231,10 @@ export function parseArgs(argv: string[]): CliCommand | null {
 
   if (args['--agent-help']) {
     return { command: 'agentHelp' };
+  }
+
+  if (args['mcp']) {
+    return { command: 'mcp' };
   }
 
   return null;

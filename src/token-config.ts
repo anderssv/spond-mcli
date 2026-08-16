@@ -224,6 +224,6 @@ export function getTokenWithFileFallback(tokenFilePath: string = DEFAULT_TOKEN_F
   }
 
   throw new Error(
-    'No SPOND_TOKEN found. Set SPOND_TOKEN environment variable or run "spond login" to save token to ~/.config/spond/token'
+    'No SPOND_TOKEN found. Set SPOND_TOKEN environment variable or run "spond-mcli login" to save token to ~/.config/spond/token'
   );
 }
