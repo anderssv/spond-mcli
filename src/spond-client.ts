@@ -8,20 +8,40 @@ export class SpondClient implements ISpondClient {
   private readonly baseUrl = 'https://api.spond.com';
   private readonly apiLevel = '2.7.9';
   private readonly token: string;
-  private readonly currentUserProfileId?: string;
+  private cachedProfileId?: string;
   private readonly fetchFn: typeof fetch;
 
   constructor(token: string, fetchFn?: typeof fetch) {
     this.token = token;
     this.fetchFn = fetchFn || fetch;
-      
-    // Extract user profile ID from the test file for now
-    // In a real implementation, this would come from a profile API call
-    this.currentUserProfileId = 'MOCK00000000000000000000000USER';
   }
-  
-  public getCurrentUserProfileId(): string | undefined {
-    return this.currentUserProfileId;
+
+  public async getCurrentUserProfileId(): Promise<string | undefined> {
+    if (this.cachedProfileId) {
+      return this.cachedProfileId;
+    }
+
+    try {
+      const url = `${this.baseUrl}/core/v1/profile`;
+
+      const response = await this.fetchFn(url, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      }
+
+      const profile = await response.json() as { id: string };
+      this.cachedProfileId = profile.id;
+      return this.cachedProfileId;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to fetch Spond profile: ${error.message}`);
+      }
+      throw new Error('Failed to fetch Spond profile: Unknown error');
+    }
   }
 
   private getHeaders(): Record<string, string> {

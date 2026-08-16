@@ -20,5 +20,5 @@ export interface ISpondClient {
   getGroupFiles(groupId: string): Promise<any>;
   fetchGroupFileToFile(fileUrl: string, filePath: string, groupId: string): Promise<string>;
   
-  getCurrentUserProfileId(): string | undefined;
+  getCurrentUserProfileId(): Promise<string | undefined>;
 }

@@ -9,6 +9,7 @@ import { getTokenWithFileFallback } from './token-config.js';
 import { SpondClient } from './spond-client.js';
 import { SpondClientFake } from './spond-client-fake.js';
 import { performLogin } from './login.js';
+import { readMembersCache, writeMembersCache, membersEqual, isCacheFresh, DEFAULT_MEMBERS_CACHE_FILE } from './members-cache.js';
 
 const AGENT_HELP = `\
 Spond CLI - Agent Guide
@@ -22,10 +23,11 @@ a one-time browser login, or set SPOND_TOKEN="mock-data" for mock data.
 
 Accept/decline an event:
   1. spond-mcli upcoming
-  2. spond-mcli event <eventId> --include-members
-  3. Find the memberId in recipients.group.members[] for the person
-     you want to respond for (memberId differs per group).
-  4. spond-mcli accept-event <eventId> <memberId>
+  2. spond-mcli my-members (memberIds for everyone you're a guardian for,
+     across all groups), or spond-mcli event <eventId> --include-members
+     to look at just that event's recipients.group.members[]
+     (memberId differs per group).
+  3. spond-mcli accept-event <eventId> <memberId>
      spond-mcli decline-event <eventId> <memberId>
 
 MCP server: run 'spond-mcli mcp' to start it over stdio.
@@ -33,7 +35,7 @@ MCP server: run 'spond-mcli mcp' to start it over stdio.
 Run 'spond-mcli --help' for the full command and flag reference.
 `;
 
-type ApiCommand = Exclude<CliCommand, { command: 'login' } | { command: 'agentHelp' } | { command: 'mcp' }>;
+type ApiCommand = Exclude<CliCommand, { command: 'login' } | { command: 'agentHelp' } | { command: 'mcp' } | { command: 'myMembers' }>;
 
 async function executeCommand(core: SpondCore, cmd: ApiCommand): Promise<{ data: unknown; notFound?: boolean }> {
   switch (cmd.command) {
@@ -117,6 +119,31 @@ async function main(): Promise<void> {
     : new SpondClient(config.token, config.fetchFn);
 
   const core = new SpondCore(client);
+
+  if (parsed.command === 'myMembers') {
+    try {
+      const cached = readMembersCache();
+      let members = cached?.members;
+
+      if (!isCacheFresh(cached)) {
+        members = await core.getMyMembers();
+        const changed = !cached || !membersEqual(cached.members, members);
+        writeMembersCache(members); // always refresh fetchedAt, resetting the TTL window
+        if (changed) {
+          console.error(`Members cache updated: ${DEFAULT_MEMBERS_CACHE_FILE}`);
+        }
+      }
+
+      console.log(JSON.stringify(members, null, 2));
+    } catch (error) {
+      if (error instanceof CoreError) {
+        console.error(`Error: ${error.message}`);
+        process.exit(1);
+      }
+      throw error;
+    }
+    return;
+  }
 
   try {
     const result = await executeCommand(core, parsed as ApiCommand);

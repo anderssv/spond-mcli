@@ -1,4 +1,4 @@
-import { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup, AttendanceStatus, calculateRegistrationStatus } from './domain-types.js';
+import { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup, AttendanceStatus, calculateRegistrationStatus, resolveMyMembers } from './domain-types.js';
 import { ISpondClient } from './spond-client-interface.js';
 
 // Custom error types to avoid MCP SDK dependency
@@ -67,7 +67,8 @@ export class SpondCore {
 
   async getEvents(params: SpondEventsQueryParams = {}) {
     const events = await this.spondClient.getEvents(params);
-    return events.map(event => this.createEventSummary(event));
+    const userProfileId = await this.resolveUserProfileId();
+    return events.map(event => this.createEventSummary(event, userProfileId));
   }
 
   async getEventById(eventId: string, includeMembers: boolean = false) {
@@ -92,17 +93,29 @@ export class SpondCore {
 
   async getUpcomingEvents(maxResults: number = 20, addProfileInfo: boolean = false) {
     const events = await this.spondClient.getUpcomingEvents(maxResults, addProfileInfo);
-    return events.map(event => this.createEventSummary(event));
+    const userProfileId = await this.resolveUserProfileId();
+    return events.map(event => this.createEventSummary(event, userProfileId));
   }
 
   async searchEvents(searchTerm: string, maxResults: number = 50) {
     const events = await this.spondClient.searchEvents(searchTerm, maxResults);
-    return events.map(event => this.createEventSummary(event));
+    const userProfileId = await this.resolveUserProfileId();
+    return events.map(event => this.createEventSummary(event, userProfileId));
   }
 
   async getEventsByGroup(groupName: string, maxResults: number = 50, filterParams: Partial<SpondEventsQueryParams> = {}) {
     const events = await this.spondClient.getEventsByGroup(groupName, maxResults, filterParams);
-    return events.map(event => this.createEventSummary(event));
+    const userProfileId = await this.resolveUserProfileId();
+    return events.map(event => this.createEventSummary(event, userProfileId));
+  }
+
+  async getMyMembers() {
+    const groups = await this.spondClient.getGroups();
+    const userProfileId = await this.spondClient.getCurrentUserProfileId();
+    if (!userProfileId) {
+      throw new CoreError(CoreErrorCode.InternalError, 'Could not determine the current user\'s profile ID');
+    }
+    return resolveMyMembers(groups, userProfileId);
   }
 
   async getPosts(params: SpondPostsQueryParams = {}) {
@@ -838,7 +851,8 @@ export class SpondCore {
       switch (uri) {
         case 'spond://events/upcoming': {
           const events = await this.spondClient.getUpcomingEvents(50, false);
-          const eventSummaries = events.map(event => this.createEventSummary(event));
+          const userProfileId = await this.resolveUserProfileId();
+          const eventSummaries = events.map(event => this.createEventSummary(event, userProfileId));
           return {
             data: eventSummaries,
             uri,
@@ -847,7 +861,8 @@ export class SpondCore {
 
         case 'spond://events/all': {
           const events = await this.spondClient.getEvents({ max: 100 });
-          const eventSummaries = events.map(event => this.createEventSummary(event));
+          const userProfileId = await this.resolveUserProfileId();
+          const eventSummaries = events.map(event => this.createEventSummary(event, userProfileId));
           return {
             data: eventSummaries,
             uri,
@@ -895,14 +910,21 @@ export class SpondCore {
     }
   }
 
-  private createEventSummary(event: SpondEvent) {
+  private async resolveUserProfileId(): Promise<string | undefined> {
+    try {
+      return await this.spondClient.getCurrentUserProfileId();
+    } catch {
+      return undefined;
+    }
+  }
+
+  private createEventSummary(event: SpondEvent, userProfileId?: string) {
     if (!event) {
       throw new Error('Event is undefined or null');
     }
-    
+
     let childAttendanceStatus: AttendanceStatus | undefined;
-    const userProfileId = this.spondClient.getCurrentUserProfileId();
-    
+
     if (userProfileId && event.responses) {
       const userChildren = event.recipients?.group?.members?.filter(member => 
         member.guardians?.some(guardian => guardian.profile?.id === userProfileId)

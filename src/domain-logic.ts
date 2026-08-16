@@ -1,3 +1,34 @@
+import type { SpondGroup } from './domain-types.js';
+
+export interface MyMember {
+  memberId: string;
+  firstName: string;
+  lastName: string;
+  groupId: string;
+  groupName: string;
+}
+
+export function resolveMyMembers(groups: SpondGroup[], myProfileId: string): MyMember[] {
+  const result: MyMember[] = [];
+
+  for (const group of groups) {
+    for (const member of group.members ?? []) {
+      const isMyMember = member.guardians?.some(guardian => guardian.profile?.id === myProfileId) ?? false;
+      if (isMyMember) {
+        result.push({
+          memberId: member.id,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          groupId: group.id,
+          groupName: group.name
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
 export enum AttendanceStatus {
   ACCEPTED = 'accepted',
   DECLINED = 'declined',

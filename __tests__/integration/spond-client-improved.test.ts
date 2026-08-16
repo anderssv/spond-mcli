@@ -366,4 +366,60 @@ describe('SpondClient HTTP Communication', () => {
       expect(captured[0].options.headers.authorization).toBe('Bearer my-secret-token');
     });
   });
+
+  describe('getCurrentUserProfileId', () => {
+    function createProfileFetch(profileId: string) {
+      const captured: { url: string; options: any }[] = [];
+      const stubFetch = (async (url: string, options: any) => {
+        captured.push({ url, options });
+        return {
+          ok: true,
+          status: 200,
+          text: async () => '',
+          json: async () => ({ id: profileId, firstName: 'Test', lastName: 'User' }),
+          headers: new Map()
+        };
+      }) as unknown as typeof import('node-fetch').default;
+      return { captured, stubFetch };
+    }
+
+    test('should fetch the authenticated user profile id from the API', async () => {
+      // Given: A client backed by a profile endpoint returning a real id
+      const { captured, stubFetch } = createProfileFetch('real-profile-id');
+      const client = new SpondClient('test-token', stubFetch);
+
+      // When: Getting the current user's profile id
+      const profileId = await client.getCurrentUserProfileId();
+
+      // Then: Should return the id from the API, fetched from the profile endpoint
+      expect(profileId).toBe('real-profile-id');
+      expect(captured[0].url).toBe('https://api.spond.com/core/v1/profile');
+    });
+
+    test('should memoize the profile id and only fetch it once across multiple calls', async () => {
+      // Given: A client backed by a profile endpoint
+      const { captured, stubFetch } = createProfileFetch('real-profile-id');
+      const client = new SpondClient('test-token', stubFetch);
+
+      // When: Getting the current user's profile id multiple times
+      await client.getCurrentUserProfileId();
+      await client.getCurrentUserProfileId();
+      await client.getCurrentUserProfileId();
+
+      // Then: Should only have called the API once
+      expect(captured).toHaveLength(1);
+    });
+
+    test('should throw a descriptive error when the profile API call fails', async () => {
+      // Given: A client where the profile API returns failure
+      const { stubFetch } = createCapturingFetch(500);
+      const client = new SpondClient('test-token', stubFetch);
+
+      // When: Attempting to get the current user's profile id
+      const attempt = client.getCurrentUserProfileId();
+
+      // Then: Should throw with a meaningful error message
+      await expect(attempt).rejects.toThrow('Failed to fetch Spond profile');
+    });
+  });
 });

@@ -247,6 +247,13 @@ describe('CLI argument parsing', () => {
     expect(result).toEqual({ command: 'mcp' });
   });
 
+  // My members command
+  it('"my-members" maps to myMembers command', () => {
+    const result = parseArgs(['my-members']);
+
+    expect(result).toEqual({ command: 'myMembers' });
+  });
+
   // Error cases
   it('unknown command returns null', () => {
     const result = parseArgs(['nonexistent']);

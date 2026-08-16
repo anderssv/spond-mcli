@@ -21,7 +21,8 @@ export type CliCommand =
   | { command: 'convertDocxToText'; inputPath: string; outputPath: string }
   | { command: 'login' }
   | { command: 'agentHelp' }
-  | { command: 'mcp' };
+  | { command: 'mcp' }
+  | { command: 'myMembers' };
 
 const USAGE = `\
 Spond CLI - Command line interface for the Spond API.
@@ -42,6 +43,7 @@ Usage:
   spond-mcli attachment <url> <groupId> <filePath>
   spond-mcli accept-event <eventId> <memberId>
   spond-mcli decline-event <eventId> <memberId>
+  spond-mcli my-members
   spond-mcli pdf-to-text <inputPath> <outputPath>
   spond-mcli docx-to-text <inputPath> <outputPath>
   spond-mcli login
@@ -78,10 +80,13 @@ Accept/Decline an event:
   have different memberIds in different groups.
 
   1. Find the event:     spond-mcli upcoming
-  2. Get member details:  spond-mcli event <eventId> --include-members
-  3. Find the memberId in recipients.group.members[] for the person
-     you want to respond for.
-  4. Accept or decline:   spond-mcli accept-event <eventId> <memberId>
+  2. Get memberIds:      spond-mcli my-members (everyone you're a guardian
+                          for, across all groups — faster than digging
+                          through event details). Cached to
+                          ~/.config/spond/members.json for 5 minutes,
+                          so repeated calls don't hit the API. Or:
+                          spond-mcli event <eventId> --include-members
+  3. Accept or decline:   spond-mcli accept-event <eventId> <memberId>
                           spond-mcli decline-event <eventId> <memberId>
 `;
 
@@ -235,6 +240,10 @@ export function parseArgs(argv: string[]): CliCommand | null {
 
   if (args['mcp']) {
     return { command: 'mcp' };
+  }
+
+  if (args['my-members']) {
+    return { command: 'myMembers' };
   }
 
   return null;

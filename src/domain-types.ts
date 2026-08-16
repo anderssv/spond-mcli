@@ -1,4 +1,4 @@
-export { AttendanceStatus, RegistrationStatus, calculateRegistrationStatus } from './domain-logic.js';
+export { AttendanceStatus, RegistrationStatus, calculateRegistrationStatus, resolveMyMembers, MyMember } from './domain-logic.js';
 
 export interface SpondEvent {
   id: string;

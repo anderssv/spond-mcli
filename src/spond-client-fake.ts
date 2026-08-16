@@ -59,7 +59,7 @@ export class SpondClientFake implements ISpondClient {
 
   // --- ISpondClient implementation ---
 
-  getCurrentUserProfileId(): string | undefined {
+  async getCurrentUserProfileId(): Promise<string | undefined> {
     return this.userProfileId;
   }
 

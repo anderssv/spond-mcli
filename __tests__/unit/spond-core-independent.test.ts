@@ -7,6 +7,7 @@ jest.mock('node-fetch', () => ({
 
 import { SpondCore, CoreError, CoreErrorCode, ToolCallResultType } from '../../src/spond-core.js';
 import { SpondClientFake } from '../../src/spond-client-fake.js';
+import { SpondGroupMother } from '../helpers/object-mothers.js';
 
 describe('SpondCore Independent Unit Tests', () => {
   let core: SpondCore;
@@ -132,6 +133,38 @@ describe('SpondCore Independent Unit Tests', () => {
       expect(CoreErrorCode.InvalidParams).toBe(-32602);
       expect(CoreErrorCode.MethodNotFound).toBe(-32601);
       expect(CoreErrorCode.InternalError).toBe(-32603);
+    });
+  });
+
+  describe('getMyMembers', () => {
+    test('should return members guarded by the current user, across groups', async () => {
+      const client = new SpondClientFake('me-profile-id');
+      const group = SpondGroupMother.createActiveGroup();
+      group.members = [
+        {
+          id: 'child-1',
+          firstName: 'Kid',
+          lastName: 'One',
+          createdTime: new Date().toISOString(),
+          respondent: true,
+          guardians: [{ id: 'g1', firstName: 'Me', lastName: 'Parent', profile: { id: 'me-profile-id' } as any }]
+        }
+      ];
+      client.addGroup(group);
+      const myCore = new SpondCore(client);
+
+      const members = await myCore.getMyMembers();
+
+      expect(members).toEqual([
+        { memberId: 'child-1', firstName: 'Kid', lastName: 'One', groupId: group.id, groupName: group.name }
+      ]);
+    });
+
+    test('should throw a CoreError when the current user profile id cannot be determined', async () => {
+      const client = new SpondClientFake('');
+      const myCore = new SpondCore(client);
+
+      await expect(myCore.getMyMembers()).rejects.toThrow(CoreError);
     });
   });
 });
