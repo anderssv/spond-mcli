@@ -6,6 +6,8 @@ export type CliCommand =
   | { command: 'getEventById'; eventId: string; includeMembers: boolean }
   | { command: 'getUpcomingEvents'; maxResults?: number }
   | { command: 'searchEvents'; searchTerm: string; maxResults?: number }
+  | { command: 'searchAll'; searchTerm: string; maxResults?: number }
+  | { command: 'searchFiles'; searchTerm: string; groupName?: string; content: boolean; maxResults?: number }
   | { command: 'getEventsByGroup'; groupName: string; maxResults?: number }
   | { command: 'getPosts'; params: SpondPostsQueryParams }
   | { command: 'getPostById'; postId: string }
@@ -19,6 +21,7 @@ export type CliCommand =
   | { command: 'declineEvent'; eventId: string; memberId: string }
   | { command: 'convertPdfToText'; inputPath: string; outputPath: string }
   | { command: 'convertDocxToText'; inputPath: string; outputPath: string }
+  | { command: 'convertXlsxToText'; inputPath: string; outputPath: string }
   | { command: 'login'; browser: boolean }
   | { command: 'agentHelp' }
   | { command: 'mcp' }
@@ -28,6 +31,8 @@ const USAGE = `\
 Spond CLI - Command line interface for the Spond API.
 
 Usage:
+  spond-mcli search <searchTerm> [--max <n>]
+  spond-mcli search-files <searchTerm> [--group <groupName>] [--content] [--max <n>]
   spond-mcli events [--max <n>] [--include-comments] [--include-hidden] [--order <order>] [--group-id <id>] [--min-end-timestamp <ts>] [--max-end-timestamp <ts>]
   spond-mcli event <eventId> [--include-members]
   spond-mcli upcoming [--max <n>]
@@ -46,6 +51,7 @@ Usage:
   spond-mcli my-members
   spond-mcli pdf-to-text <inputPath> <outputPath>
   spond-mcli docx-to-text <inputPath> <outputPath>
+  spond-mcli xlsx-to-text <inputPath> <outputPath>
   spond-mcli login [--browser]
   spond-mcli mcp
   spond-mcli --agent-help
@@ -53,6 +59,21 @@ Usage:
 For AI agents:
   If you are an AI agent using this CLI, run 'spond-mcli --agent-help' for a
   condensed usage guide (auth, output format, accept/decline workflow).
+
+Search:
+  'spond-mcli search <term>' is the recommended way to search — it looks
+  across events, plain posts, polls, and payment requests in one call,
+  tagging each result with kind ("event" or "post"). The narrower
+  'search-events'/'search-posts' commands still exist if you only care
+  about one type.
+
+  'spond-mcli search-files <term>' searches group files (PDFs, DOCX,
+  images, spreadsheets) by filename, across all your groups by default
+  or scoped to one with --group. It's a separate command because Spond
+  has no unified search across events/posts/files.
+  Add --content to also download and text-search inside PDF/DOCX files
+  (requires pdftotext/docx2txt) — this is much slower since every
+  candidate file gets downloaded and converted, so it's opt-in.
 
 MCP Server:
   Run 'spond-mcli mcp' to start the MCP server over stdio. This is the
@@ -76,9 +97,11 @@ Options:
   --include-members          Include member information
   --order <order>            Sort order (asc or desc)
   --group-id <id>            Filter by group ID
+  --group <groupName>        Filter search-files to groups matching this name
+  --content                  Also search inside PDF/DOCX file contents (slow)
   --min-end-timestamp <ts>   Minimum end timestamp (ISO 8601)
   --max-end-timestamp <ts>   Maximum end timestamp (ISO 8601)
-  --type <type>              Post type (PLAIN, POLL, PAYMENT_REQUEST)
+  --type <type>              Post type (PLAIN, POLL, PAYMENT)
   --include-read-status      Include read status
 
 Accept/Decline an event:
@@ -137,6 +160,24 @@ export function parseArgs(argv: string[]): CliCommand | null {
     };
   }
 
+  if (args['search-files']) {
+    return {
+      command: 'searchFiles',
+      searchTerm: args['<searchTerm>'] as string,
+      groupName: (args['--group'] as string | null) ?? undefined,
+      content: !!args['--content'],
+      ...(args['--max'] ? { maxResults: Number(args['--max']) } : {})
+    };
+  }
+
+  if (args['search']) {
+    return {
+      command: 'searchAll',
+      searchTerm: args['<searchTerm>'] as string,
+      ...(args['--max'] ? { maxResults: Number(args['--max']) } : {})
+    };
+  }
+
   if (args['search-events']) {
     return {
       command: 'searchEvents',
@@ -156,7 +197,7 @@ export function parseArgs(argv: string[]): CliCommand | null {
   if (args['posts']) {
     const params: SpondPostsQueryParams = {};
     if (args['--max']) params.max = Number(args['--max']);
-    if (args['--type']) params.type = args['--type'] as 'PLAIN' | 'POLL' | 'PAYMENT_REQUEST';
+    if (args['--type']) params.type = args['--type'] as 'PLAIN' | 'POLL' | 'PAYMENT';
     if (args['--group-id']) params.groupId = args['--group-id'] as string;
     if (args['--include-read-status']) params.includeReadStatus = true;
     return { command: 'getPosts', params };
@@ -235,6 +276,14 @@ export function parseArgs(argv: string[]): CliCommand | null {
   if (args['docx-to-text']) {
     return {
       command: 'convertDocxToText',
+      inputPath: args['<inputPath>'] as string,
+      outputPath: args['<outputPath>'] as string
+    };
+  }
+
+  if (args['xlsx-to-text']) {
+    return {
+      command: 'convertXlsxToText',
       inputPath: args['<inputPath>'] as string,
       outputPath: args['<outputPath>'] as string
     };

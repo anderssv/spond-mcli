@@ -1,4 +1,23 @@
-export { AttendanceStatus, RegistrationStatus, calculateRegistrationStatus, resolveMyMembers, MyMember, extractAccessToken } from './domain-logic.js';
+export { AttendanceStatus, RegistrationStatus, calculateRegistrationStatus, resolveMyMembers, MyMember, extractAccessToken, matchesSearchTerm, matchesFilename, isContentSearchable, getConverterCommand } from './domain-logic.js';
+
+export interface FileResource {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  mediaType?: string;
+  size?: number;
+}
+
+export interface FileSearchResult {
+  matchType: 'filename' | 'content';
+  id: string;
+  name: string;
+  type: string;
+  url: string;
+  groupId: string;
+  groupName: string;
+}
 
 export interface SpondEvent {
   id: string;
@@ -158,11 +177,41 @@ export interface SpondEventsQueryParams {
 
 export interface SpondPost {
   id: string;
-  type: 'PLAIN' | 'POLL' | 'PAYMENT_REQUEST';
+  // The API's own discriminator on the response. Requesting `type=PAYMENT`
+  // returns items whose actual type is "CLUB_PAYMENT" (or possibly others) —
+  // this is intentionally looser than SpondPostsQueryParams['type'].
+  type: 'PLAIN' | 'POLL' | 'CLUB_PAYMENT' | string;
   groupId: string;
   subGroupIds?: string[];
-  title: string;
-  body: string;
+  // PLAIN posts have title/body; POLL and (CLUB_)PAYMENT posts carry their
+  // content in `poll`/`clubPayment` instead and may omit these entirely.
+  title?: string;
+  body?: string;
+  poll?: {
+    id: string;
+    question: string;
+    description?: string;
+    multipleChoice: boolean;
+    dueBy?: string;
+    expired?: boolean;
+    options: Array<{
+      id: string;
+      text: string;
+      votes: string[];
+    }>;
+    blankVotes?: string[];
+    behalfOfIds?: string[];
+  };
+  clubPayment?: {
+    id: string;
+    title: string;
+    clubName?: string;
+    currency?: string;
+    status?: string;
+    amount?: number;
+    amountFormatted?: string;
+  };
+  dueTimestamp?: string;
   ownerId: string;
   timestamp: string;
   media?: Array<{
@@ -200,7 +249,7 @@ export interface SpondPost {
 }
 
 export interface SpondPostsQueryParams {
-  type?: 'PLAIN' | 'POLL' | 'PAYMENT_REQUEST';
+  type?: 'PLAIN' | 'POLL' | 'PAYMENT';
   includeComments?: boolean;
   includeReadStatus?: boolean;
   includeSeenCount?: boolean;

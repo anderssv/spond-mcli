@@ -1,5 +1,6 @@
-import { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup, AttendanceStatus, calculateRegistrationStatus, resolveMyMembers } from './domain-types.js';
+import { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup, AttendanceStatus, calculateRegistrationStatus, resolveMyMembers, matchesSearchTerm, matchesFilename, isContentSearchable, FileResource, FileSearchResult } from './domain-types.js';
 import { ISpondClient } from './spond-client-interface.js';
+import { convertFileToText } from './file-converter.js';
 
 // Custom error types to avoid MCP SDK dependency
 export enum CoreErrorCode {
@@ -132,6 +133,38 @@ export class SpondCore {
     const posts = await this.spondClient.searchPosts(searchTerm, maxResults);
     const groups = await this.spondClient.getGroups();
     return posts.map(post => this.createPostSummary(post, groups));
+  }
+
+  async searchAll(searchTerm: string, maxResults: number = 50) {
+    const postTypes: Array<'PLAIN' | 'POLL' | 'PAYMENT'> = ['PLAIN', 'POLL', 'PAYMENT'];
+
+    const [events, ...postLists] = await Promise.all([
+      this.spondClient.searchEvents(searchTerm, maxResults),
+      ...postTypes.map(type => this.spondClient.getPosts({ type, max: maxResults }))
+    ]);
+
+    const [userProfileId, groups] = await Promise.all([
+      this.resolveUserProfileId(),
+      this.spondClient.getGroups()
+    ]);
+
+    const eventResults = events.map(event => ({
+      kind: 'event' as const,
+      ...this.createEventSummary(event, userProfileId)
+    }));
+
+    const matchingPosts = postLists.flat().filter(post => matchesSearchTerm(post, searchTerm));
+    const postResults = matchingPosts.map(post => ({
+      kind: 'post' as const,
+      ...this.createPostSummary(post, groups)
+    }));
+
+    const sortKey = (result: Record<string, unknown>) =>
+      new Date((result.startTime ?? result.timestamp ?? 0) as string | number).getTime();
+
+    return [...eventResults, ...postResults]
+      .sort((a, b) => sortKey(b) - sortKey(a))
+      .slice(0, maxResults);
   }
 
   async getPostsByGroup(groupName: string, maxResults: number = 50) {
@@ -356,7 +389,7 @@ export class SpondCore {
           properties: {
             type: {
               type: 'string',
-              enum: ['PLAIN', 'POLL', 'PAYMENT_REQUEST'],
+              enum: ['PLAIN', 'POLL', 'PAYMENT'],
               description: 'Type of posts to fetch',
               default: 'PLAIN'
             },
@@ -426,6 +459,57 @@ export class SpondCore {
             maxResults: {
               type: 'number',
               description: 'Maximum number of posts to return',
+              default: 50,
+              minimum: 1,
+              maximum: 100
+            }
+          },
+          required: ['searchTerm']
+        }
+      },
+      {
+        name: 'search_all',
+        description: 'Search across everything at once — events, plain posts, polls, and payment requests — by keyword. Each result is tagged with kind ("event" or "post") so you can tell them apart.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            searchTerm: {
+              type: 'string',
+              description: 'Search term to look for'
+            },
+            maxResults: {
+              type: 'number',
+              description: 'Maximum number of combined results to return',
+              default: 50,
+              minimum: 1,
+              maximum: 100
+            }
+          },
+          required: ['searchTerm']
+        }
+      },
+      {
+        name: 'search_files',
+        description: 'Search group files by filename, across all your groups by default (or one group with groupName). Spond has no unified search including files, so this is separate from search_all. Set content=true to also download and text-search inside PDF/DOCX file contents — this is much slower since every candidate file is downloaded and converted, so it is opt-in and requires pdftotext/docx2txt to be installed.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            searchTerm: {
+              type: 'string',
+              description: 'Search term to look for in filenames (and file contents if content=true)'
+            },
+            groupName: {
+              type: 'string',
+              description: 'Restrict the search to groups whose name contains this (optional — searches all groups if omitted)'
+            },
+            content: {
+              type: 'boolean',
+              description: 'Also search inside PDF/DOCX file contents, not just filenames. Slower — downloads and converts each candidate file.',
+              default: false
+            },
+            maxResults: {
+              type: 'number',
+              description: 'Maximum number of results to return',
               default: 50,
               minimum: 1,
               maximum: 100
@@ -553,6 +637,24 @@ export class SpondCore {
             outputPath: {
               type: 'string',
               description: 'Full file path where to save the converted text file'
+            }
+          },
+          required: ['inputPath', 'outputPath']
+        }
+      },
+      {
+        name: 'convert_xlsx_to_text',
+        description: 'Convert an XLSX (or legacy XLS) spreadsheet to CSV text using ssconvert (part of the gnumeric package)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            inputPath: {
+              type: 'string',
+              description: 'Full file path to the input XLSX file'
+            },
+            outputPath: {
+              type: 'string',
+              description: 'Full file path where to save the converted CSV file'
             }
           },
           required: ['inputPath', 'outputPath']
@@ -718,13 +820,39 @@ export class SpondCore {
         }
 
         case 'search_posts': {
-          const { searchTerm, maxResults = 50 } = params as { 
-            searchTerm: string; 
-            maxResults?: number; 
+          const { searchTerm, maxResults = 50 } = params as {
+            searchTerm: string;
+            maxResults?: number;
           };
           requireParams(params, 'searchTerm');
           return {
             data: await this.searchPosts(searchTerm, maxResults),
+            type: ToolCallResultType.Success
+          };
+        }
+
+        case 'search_all': {
+          const { searchTerm, maxResults = 50 } = params as {
+            searchTerm: string;
+            maxResults?: number;
+          };
+          requireParams(params, 'searchTerm');
+          return {
+            data: await this.searchAll(searchTerm, maxResults),
+            type: ToolCallResultType.Success
+          };
+        }
+
+        case 'search_files': {
+          const { searchTerm, groupName, content = false, maxResults = 50 } = params as {
+            searchTerm: string;
+            groupName?: string;
+            content?: boolean;
+            maxResults?: number;
+          };
+          requireParams(params, 'searchTerm');
+          return {
+            data: await this.searchFiles(searchTerm, { groupName, content }, maxResults),
             type: ToolCallResultType.Success
           };
         }
@@ -800,13 +928,27 @@ export class SpondCore {
         }
 
         case 'convert_docx_to_text': {
-          const { inputPath, outputPath } = params as { 
-            inputPath: string; 
+          const { inputPath, outputPath } = params as {
+            inputPath: string;
             outputPath: string;
           };
           requireParams(params, 'inputPath', 'outputPath');
-          
+
           const result = await this.convertDocxToText(inputPath, outputPath);
+          return {
+            data: { message: result },
+            type: ToolCallResultType.Success
+          };
+        }
+
+        case 'convert_xlsx_to_text': {
+          const { inputPath, outputPath } = params as {
+            inputPath: string;
+            outputPath: string;
+          };
+          requireParams(params, 'inputPath', 'outputPath');
+
+          const result = await this.convertXlsxToText(inputPath, outputPath);
           return {
             data: { message: result },
             type: ToolCallResultType.Success
@@ -977,22 +1119,43 @@ export class SpondCore {
     if (!post) {
       throw new Error('Post is undefined or null');
     }
-    
+
     const group = groups.find(g => g.id === post.groupId);
-    
-    return {
+    const title = post.title ?? post.poll?.question ?? post.clubPayment?.title;
+    const body = post.body ?? post.poll?.description;
+
+    const summary: Record<string, unknown> = {
       id: post.id,
-      title: post.title,
+      title,
       groupName: group?.name || 'Unknown Group',
       groupId: post.groupId,
       timestamp: post.timestamp,
       ownerId: post.ownerId,
-      body: post.body?.length > 100 ? post.body.substring(0, 100) + '...' : post.body,
+      body: body && body.length > 100 ? body.substring(0, 100) + '...' : body,
       type: post.type,
       commentCount: post.comments?.length || 0,
       seenCount: post.seenCount || 0,
       unread: post.unread
     };
+
+    if (post.poll) {
+      summary.poll = {
+        dueBy: post.poll.dueBy,
+        expired: post.poll.expired,
+        multipleChoice: post.poll.multipleChoice,
+        options: post.poll.options.map(option => ({ text: option.text, voteCount: option.votes.length }))
+      };
+    }
+
+    if (post.clubPayment) {
+      summary.payment = {
+        status: post.clubPayment.status,
+        amountFormatted: post.clubPayment.amountFormatted,
+        dueTimestamp: post.dueTimestamp
+      };
+    }
+
+    return summary;
   }
 
   private createGroupSummary(group: SpondGroup) {
@@ -1012,55 +1175,65 @@ export class SpondCore {
     };
   }
 
-  private async convertFileToText(
-    command: string, 
-    fileType: string, 
-    inputPath: string, 
-    outputPath: string, 
-    installHint: string
-  ): Promise<string> {
-    const { spawn } = await import('child_process');
-    const { promises: fs } = await import('fs');
-    
-    try {
-      await fs.access(inputPath);
-    } catch {
-      throw new Error(`Input ${fileType} file not found: ${inputPath}`);
-    }
-
-    return new Promise((resolve, reject) => {
-      const process = spawn(command, [inputPath, outputPath]);
-      
-      let errorOutput = '';
-      
-      process.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-      
-      process.on('close', async (code) => {
-        if (code === 0) {
-          try {
-            await fs.access(outputPath);
-            resolve(`Successfully converted ${fileType} to text. Output saved to: ${outputPath}`);
-          } catch {
-            reject(new Error(`${fileType} conversion completed but output file not found: ${outputPath}`));
-          }
-        } else {
-          reject(new Error(`${command} failed with exit code ${code}. Error: ${errorOutput}`));
-        }
-      });
-      
-      process.on('error', (error) => {
-        reject(new Error(`Failed to start ${command} command: ${error.message}. ${installHint}`));
-      });
-    });
-  }
-
   async convertPdfToText(inputPath: string, outputPath: string): Promise<string> {
-    return this.convertFileToText('pdftotext', 'PDF', inputPath, outputPath, 'Make sure pdftotext is installed (usually part of poppler-utils package).');
+    return convertFileToText('pdftotext', 'PDF', inputPath, outputPath, 'Make sure pdftotext is installed (usually part of poppler-utils package).');
   }
 
   async convertDocxToText(inputPath: string, outputPath: string): Promise<string> {
-    return this.convertFileToText('docx2txt', 'DOCX', inputPath, outputPath, 'Make sure docx2txt is installed.');
+    return convertFileToText('docx2txt', 'DOCX', inputPath, outputPath, 'Make sure docx2txt is installed.');
+  }
+
+  async convertXlsxToText(inputPath: string, outputPath: string): Promise<string> {
+    return convertFileToText('ssconvert', 'XLSX', inputPath, outputPath, 'Make sure ssconvert is installed (part of the gnumeric package).');
+  }
+
+  async searchFiles(
+    searchTerm: string,
+    options: { groupName?: string; content?: boolean } = {},
+    maxResults: number = 50
+  ): Promise<FileSearchResult[]> {
+    const allGroups = await this.spondClient.getGroups();
+    const groups = options.groupName
+      ? allGroups.filter(g => g.name?.toLowerCase().includes(options.groupName!.toLowerCase()))
+      : allGroups;
+
+    const results: FileSearchResult[] = [];
+
+    for (const group of groups) {
+      const listing = await this.spondClient.getGroupFiles(group.id);
+      const resources: FileResource[] = listing?.resources ?? [];
+
+      for (const resource of resources) {
+        if (results.length >= maxResults) break;
+
+        if (matchesFilename(resource.name, searchTerm)) {
+          results.push(this.toFileSearchResult(resource, group, 'filename'));
+          continue;
+        }
+
+        if (options.content && isContentSearchable(resource.mediaType)) {
+          const text = await this.spondClient.extractFileText(resource, group.id);
+          if (text && text.toLowerCase().includes(searchTerm.toLowerCase())) {
+            results.push(this.toFileSearchResult(resource, group, 'content'));
+          }
+        }
+      }
+
+      if (results.length >= maxResults) break;
+    }
+
+    return results.slice(0, maxResults);
+  }
+
+  private toFileSearchResult(resource: FileResource, group: SpondGroup, matchType: 'filename' | 'content'): FileSearchResult {
+    return {
+      matchType,
+      id: resource.id,
+      name: resource.name,
+      type: resource.type,
+      url: resource.url,
+      groupId: group.id,
+      groupName: group.name
+    };
   }
 }

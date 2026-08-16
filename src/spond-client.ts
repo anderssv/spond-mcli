@@ -1,8 +1,10 @@
 import fetch from 'node-fetch';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 import { ISpondClient } from './spond-client-interface.js';
-import type { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup } from './domain-types.js';
+import type { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup, FileResource } from './domain-types.js';
+import { getConverterCommand } from './domain-logic.js';
+import { convertFileToText } from './file-converter.js';
 
 export class SpondClient implements ISpondClient {
   private readonly baseUrl = 'https://api.spond.com';
@@ -431,5 +433,31 @@ export class SpondClient implements ISpondClient {
 
   async fetchGroupFileToFile(fileUrl: string, filePath: string, groupId: string): Promise<string> {
     return this.fetchAttachmentToFile(fileUrl, filePath, groupId);
+  }
+
+  async extractFileText(resource: FileResource, groupId: string): Promise<string | null> {
+    const command = getConverterCommand(resource.mediaType);
+    if (!command) {
+      return null;
+    }
+
+    const { mkdtemp, readFile, rm } = await import('fs/promises');
+    const { tmpdir } = await import('os');
+
+    const tmpDir = await mkdtemp(join(tmpdir(), 'spond-content-search-'));
+    const inputPath = join(tmpDir, 'input');
+    // ssconvert infers the output format from the destination extension;
+    // pdftotext/docx2txt ignore it and always write plain text.
+    const outputPath = join(tmpDir, command === 'ssconvert' ? 'output.csv' : 'output.txt');
+
+    try {
+      await this.fetchAttachmentToFile(resource.url, inputPath, groupId);
+      await convertFileToText(command, resource.mediaType!, inputPath, outputPath, `Make sure ${command} is installed.`);
+      return await readFile(outputPath, 'utf-8');
+    } catch {
+      return null;
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
   }
 }

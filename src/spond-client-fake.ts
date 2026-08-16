@@ -11,6 +11,7 @@ export class SpondClientFake implements ISpondClient {
   private shouldFailNextCall = false;
   private nextErrorMessage = 'Network error';
   private readonly userProfileId: string | undefined;
+  private fileContents = new Map<string, string>();
 
   constructor(userProfileId?: string) {
     this.userProfileId = userProfileId ?? 'fake-user-profile-id';
@@ -175,7 +176,11 @@ export class SpondClientFake implements ISpondClient {
     let filteredPosts = [...this.posts];
 
     if (params.type) {
-      filteredPosts = filteredPosts.filter(post => post.type === params.type);
+      // Mirrors the real API: requesting type=PAYMENT returns posts whose
+      // actual `type` is CLUB_PAYMENT.
+      filteredPosts = filteredPosts.filter(post =>
+        params.type === 'PAYMENT' ? post.type === 'CLUB_PAYMENT' : post.type === params.type
+      );
     }
 
     if (params.groupId) {
@@ -295,6 +300,14 @@ export class SpondClientFake implements ISpondClient {
 
   async fetchGroupFileToFile(fileUrl: string, filePath: string, groupId: string): Promise<string> {
     return this.fetchAttachmentToFile(fileUrl, filePath, groupId);
+  }
+
+  setFileContent(resourceId: string, text: string): void {
+    this.fileContents.set(resourceId, text);
+  }
+
+  async extractFileText(resource: { id: string }): Promise<string | null> {
+    return this.fileContents.get(resource.id) ?? null;
   }
 
   // --- Internal ---

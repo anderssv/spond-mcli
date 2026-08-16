@@ -208,6 +208,23 @@ describe('MCP Tool Capabilities for Users', () => {
       ).rejects.toThrow('searchTerm is required');
     });
 
+    test('should search across events and posts at once via search_all', async () => {
+      const result = await core.processToolCall('search_all', {
+        searchTerm: 'Gaming',
+        maxResults: 10
+      });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(Array.isArray(result.data)).toBe(true);
+      expect(result.data.every((item: any) => item.kind === 'event' || item.kind === 'post')).toBe(true);
+    });
+
+    test('should require searchTerm for search_all', async () => {
+      await expect(
+        core.processToolCall('search_all', {})
+      ).rejects.toThrow('searchTerm is required');
+    });
+
     test('should retrieve posts by group name', async () => {
       const result = await core.processToolCall('get_posts_by_group', {
         groupName: 'Gaming Center',

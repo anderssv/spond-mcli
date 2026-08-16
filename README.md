@@ -75,9 +75,10 @@ The server is (for now) read-only and provides access to Spond's core data struc
 - Node.js version pinned in `mise.toml` (run `mise install` to get it)
 - A valid Spond account with API access
 - Bearer token for authentication
-- Accessing attachments requires:
-  - pdftotext installed for PDF parsing (usually part of poppler-utils package)
-  - docx2txt installed for DOCX parsing
+- Converting files to text (and `search-files --content`) requires:
+  - pdftotext for PDF parsing (usually part of poppler-utils package)
+  - docx2txt for DOCX parsing
+  - ssconvert for XLSX/XLS parsing (part of the gnumeric package, e.g. `brew install gnumeric`)
 
 ## Installation
 
@@ -197,7 +198,8 @@ $ claude mcp add spond-mcli node /path/to/spond-mcli/dist/index.js -e SPOND_TOKE
 ## Available Tools
 
 The MCP server provides comprehensive tools for accessing Spond data,
-including document conversion capabilities for PDF and DOCX files.
+including document conversion capabilities for PDF, DOCX, and XLSX files,
+and a unified search across events, posts, and files.
 For detailed information about all available tools and their parameters,
 see the tool definitions in [src/spond-core.ts](src/spond-core.ts).
 

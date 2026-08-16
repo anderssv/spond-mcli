@@ -7,7 +7,7 @@ jest.mock('node-fetch', () => ({
 
 import { SpondCore, CoreError, CoreErrorCode, ToolCallResultType } from '../../src/spond-core.js';
 import { SpondClientFake } from '../../src/spond-client-fake.js';
-import { SpondGroupMother } from '../helpers/object-mothers.js';
+import { SpondGroupMother, SpondEventBuilder } from '../helpers/object-mothers.js';
 
 describe('SpondCore Independent Unit Tests', () => {
   let core: SpondCore;
@@ -22,7 +22,7 @@ describe('SpondCore Independent Unit Tests', () => {
     test('should return all expected tool definitions', () => {
       const tools = core.getToolDefinitions();
       
-      expect(tools).toHaveLength(17);
+      expect(tools).toHaveLength(20);
       expect(tools.map(t => t.name)).toContain('get_events');
       expect(tools.map(t => t.name)).toContain('get_upcoming_events');
       expect(tools.map(t => t.name)).toContain('search_events');
@@ -165,6 +165,201 @@ describe('SpondCore Independent Unit Tests', () => {
       const myCore = new SpondCore(client);
 
       await expect(myCore.getMyMembers()).rejects.toThrow(CoreError);
+    });
+  });
+
+  describe('getPosts poll/payment enrichment', () => {
+    test('should fall back to the poll question/description when title/body are absent', async () => {
+      const client = new SpondClientFake();
+      client.addPost({
+        id: 'poll-post-1',
+        type: 'POLL',
+        groupId: 'group-1',
+        ownerId: 'owner-1',
+        timestamp: new Date().toISOString(),
+        visibility: 'ALL',
+        unread: false,
+        commentsDisabled: false,
+        muted: false,
+        selectMemberPoll: false,
+        poll: {
+          id: 'poll-1',
+          question: 'Bytte treningstid?',
+          description: 'Kort beskrivelse',
+          multipleChoice: false,
+          options: [
+            { id: 'opt-1', text: 'Ja', votes: ['a', 'b'] },
+            { id: 'opt-2', text: 'Nei', votes: [] }
+          ]
+        }
+      } as any);
+      const myCore = new SpondCore(client);
+
+      const [summary] = await myCore.getPosts({ type: 'POLL' });
+
+      expect(summary.title).toBe('Bytte treningstid?');
+      expect(summary.body).toBe('Kort beskrivelse');
+      expect((summary as any).poll.options).toEqual([
+        { text: 'Ja', voteCount: 2 },
+        { text: 'Nei', voteCount: 0 }
+      ]);
+    });
+
+    test('should fall back to the club payment title when title/body are absent', async () => {
+      const client = new SpondClientFake();
+      client.addPost({
+        id: 'payment-post-1',
+        type: 'CLUB_PAYMENT',
+        groupId: 'group-1',
+        ownerId: 'owner-1',
+        timestamp: new Date().toISOString(),
+        visibility: 'ALL',
+        unread: false,
+        commentsDisabled: false,
+        muted: false,
+        selectMemberPoll: false,
+        clubPayment: {
+          id: 'payment-1',
+          title: 'Treningsavgift 2026',
+          status: 'unanswered',
+          amountFormatted: 'Kr 500'
+        }
+      } as any);
+      const myCore = new SpondCore(client);
+
+      const [summary] = await myCore.getPosts({ type: 'PAYMENT' });
+
+      expect(summary.title).toBe('Treningsavgift 2026');
+      expect((summary as any).payment).toEqual({ status: 'unanswered', amountFormatted: 'Kr 500', dueTimestamp: undefined });
+    });
+  });
+
+  describe('searchAll', () => {
+    test('should return matching events and posts of every type, tagged by kind', async () => {
+      const client = new SpondClientFake();
+      client.addEvent(SpondEventBuilder.anEvent().withHeading('Dugnad kveld').build());
+      client.addPost({
+        id: 'plain-1',
+        type: 'PLAIN',
+        groupId: 'group-1',
+        title: 'Dugnad i helgen',
+        body: 'Kom og hjelp til',
+        ownerId: 'owner-1',
+        timestamp: new Date().toISOString(),
+        visibility: 'ALL',
+        unread: false,
+        commentsDisabled: false,
+        muted: false,
+        selectMemberPoll: false
+      } as any);
+      client.addPost({
+        id: 'poll-1',
+        type: 'POLL',
+        groupId: 'group-1',
+        ownerId: 'owner-1',
+        timestamp: new Date().toISOString(),
+        visibility: 'ALL',
+        unread: false,
+        commentsDisabled: false,
+        muted: false,
+        selectMemberPoll: false,
+        poll: { id: 'p1', question: 'Dugnad lørdag eller søndag?', multipleChoice: false, options: [] }
+      } as any);
+      client.addPost({
+        id: 'other-plain',
+        type: 'PLAIN',
+        groupId: 'group-1',
+        title: 'Uten treff',
+        body: 'Ingenting relevant',
+        ownerId: 'owner-1',
+        timestamp: new Date().toISOString(),
+        visibility: 'ALL',
+        unread: false,
+        commentsDisabled: false,
+        muted: false,
+        selectMemberPoll: false
+      } as any);
+      const myCore = new SpondCore(client);
+
+      const results = await myCore.searchAll('dugnad');
+
+      expect(results.every(r => typeof (r as any).kind === 'string')).toBe(true);
+      expect(results.map(r => (r as any).kind).sort()).toEqual(['event', 'post', 'post']);
+      expect(results.some(r => (r as any).kind === 'event' && (r as any).heading === 'Dugnad kveld')).toBe(true);
+      expect(results.some(r => (r as any).kind === 'post' && (r as any).id === 'plain-1')).toBe(true);
+      expect(results.some(r => (r as any).kind === 'post' && (r as any).id === 'poll-1')).toBe(true);
+      expect(results.some(r => (r as any).id === 'other-plain')).toBe(false);
+    });
+
+    test('should respect maxResults across the combined results', async () => {
+      const client = new SpondClientFake();
+      for (let i = 0; i < 5; i++) {
+        client.addEvent(SpondEventBuilder.anEvent().withId(`evt-${i}`).withHeading(`Match event ${i}`).build());
+      }
+      const myCore = new SpondCore(client);
+
+      const results = await myCore.searchAll('match', 3);
+
+      expect(results).toHaveLength(3);
+    });
+  });
+
+  describe('searchFiles', () => {
+    test('should find a filename match without needing the content option', async () => {
+      const client = new SpondClientFake();
+      client.addGroup(SpondGroupMother.createActiveGroup());
+      const myCore = new SpondCore(client);
+
+      const results = await myCore.searchFiles('meeting');
+
+      expect(results).toEqual([
+        expect.objectContaining({ matchType: 'filename', id: 'file1', name: 'meeting-notes.pdf' })
+      ]);
+    });
+
+    test('should not search file content unless the content option is set', async () => {
+      const client = new SpondClientFake();
+      client.addGroup(SpondGroupMother.createActiveGroup());
+      client.setFileContent('file1', 'this document mentions dugnad several times');
+      const myCore = new SpondCore(client);
+
+      const results = await myCore.searchFiles('dugnad');
+
+      expect(results).toEqual([]);
+    });
+
+    test('should find a content match when the content option is set', async () => {
+      const client = new SpondClientFake();
+      client.addGroup(SpondGroupMother.createActiveGroup());
+      client.setFileContent('file1', 'this document mentions dugnad several times');
+      const myCore = new SpondCore(client);
+
+      const results = await myCore.searchFiles('dugnad', { content: true });
+
+      expect(results).toEqual([
+        expect.objectContaining({ matchType: 'content', id: 'file1', name: 'meeting-notes.pdf' })
+      ]);
+    });
+
+    test('should only search groups matching groupName when provided', async () => {
+      const client = new SpondClientFake();
+      client.addGroup(SpondGroupMother.createGroupWithCustomName('Other Group'));
+      const myCore = new SpondCore(client);
+
+      const results = await myCore.searchFiles('meeting', { groupName: 'Nonexistent' });
+
+      expect(results).toEqual([]);
+    });
+
+    test('should respect maxResults', async () => {
+      const client = new SpondClientFake();
+      client.addGroup(SpondGroupMother.createActiveGroup());
+      client.addGroup(SpondGroupMother.createGroupWithCustomName('Second Group'));
+      const myCore = new SpondCore(client);
+
+      const results = await myCore.searchFiles('e', {}, 1);
+
+      expect(results).toHaveLength(1);
     });
   });
 });

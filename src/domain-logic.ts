@@ -1,4 +1,36 @@
-import type { SpondGroup } from './domain-types.js';
+import type { SpondGroup, SpondPost } from './domain-types.js';
+
+export function matchesSearchTerm(post: SpondPost, searchTerm: string): boolean {
+  const haystack = [
+    post.title,
+    post.body,
+    post.poll?.question,
+    post.poll?.description,
+    post.clubPayment?.title
+  ].filter((part): part is string => !!part).join(' ').toLowerCase();
+
+  return haystack.includes(searchTerm.toLowerCase());
+}
+
+export function matchesFilename(resourceName: string, searchTerm: string): boolean {
+  return resourceName.toLowerCase().includes(searchTerm.toLowerCase());
+}
+
+const CONTENT_CONVERTERS: Record<string, string> = {
+  'application/pdf': 'pdftotext',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx2txt',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'ssconvert',
+  'application/vnd.ms-excel': 'ssconvert'
+};
+
+export function getConverterCommand(mediaType?: string): string | null {
+  if (!mediaType) return null;
+  return CONTENT_CONVERTERS[mediaType] ?? null;
+}
+
+export function isContentSearchable(mediaType?: string): boolean {
+  return getConverterCommand(mediaType) !== null;
+}
 
 export interface MyMember {
   memberId: string;

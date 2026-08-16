@@ -87,6 +87,56 @@ describe('CLI argument parsing', () => {
     });
   });
 
+  it('"search <term>" maps to searchAll with searchTerm', () => {
+    const result = parseArgs(['search', 'dugnad']);
+
+    expect(result).toEqual({ command: 'searchAll', searchTerm: 'dugnad' });
+  });
+
+  it('"search <term> --max 10" maps to searchAll with maxResults', () => {
+    const result = parseArgs(['search', 'dugnad', '--max', '10']);
+
+    expect(result).toEqual({
+      command: 'searchAll',
+      searchTerm: 'dugnad',
+      maxResults: 10
+    });
+  });
+
+  it('"search-files <term>" maps to searchFiles with searchTerm, no group/content', () => {
+    const result = parseArgs(['search-files', 'dugnad']);
+
+    expect(result).toEqual({
+      command: 'searchFiles',
+      searchTerm: 'dugnad',
+      groupName: undefined,
+      content: false
+    });
+  });
+
+  it('"search-files <term> --group <name> --content" maps to searchFiles with options', () => {
+    const result = parseArgs(['search-files', 'dugnad', '--group', 'Håndball', '--content']);
+
+    expect(result).toEqual({
+      command: 'searchFiles',
+      searchTerm: 'dugnad',
+      groupName: 'Håndball',
+      content: true
+    });
+  });
+
+  it('"search-files <term> --max 5" maps to searchFiles with maxResults', () => {
+    const result = parseArgs(['search-files', 'dugnad', '--max', '5']);
+
+    expect(result).toEqual({
+      command: 'searchFiles',
+      searchTerm: 'dugnad',
+      groupName: undefined,
+      content: false,
+      maxResults: 5
+    });
+  });
+
   it('"events-by-group <name>" maps to getEventsByGroup with groupName', () => {
     const result = parseArgs(['events-by-group', 'Team A']);
 
@@ -202,6 +252,16 @@ describe('CLI argument parsing', () => {
       command: 'convertDocxToText',
       inputPath: '/tmp/in.docx',
       outputPath: '/tmp/out.txt'
+    });
+  });
+
+  it('"xlsx-to-text <in> <out>" maps to convertXlsxToText', () => {
+    const result = parseArgs(['xlsx-to-text', '/tmp/in.xlsx', '/tmp/out.csv']);
+
+    expect(result).toEqual({
+      command: 'convertXlsxToText',
+      inputPath: '/tmp/in.xlsx',
+      outputPath: '/tmp/out.csv'
     });
   });
 

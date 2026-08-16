@@ -47,7 +47,11 @@ The project uses hexagonal architecture with clear separation:
 
 ## MCP Tools
 
-The server provides 17 tools:
+The server provides 20 tools:
+
+### Search Tools
+- `search_all` - Search across everything at once: events, plain posts, polls, and payment requests. Results are tagged `kind: "event"|"post"`. Prefer this over the narrower search tools below unless you specifically only want one type.
+- `search_files` - Search group files by filename, across all groups by default (or one group with `groupName`). Separate from `search_all` since Spond has no unified search including files — and it only covers the group Files tab (`get_group_files`), not files attached to individual posts. Set `content: true` to also download and text-search inside PDF/DOCX/XLSX contents (requires pdftotext/docx2txt/ssconvert) — slower, so opt-in.
 
 ### Event Tools
 - `get_events` - Get events with filtering (includeComments, includeHidden, scheduled, order, max, timestamps, groupId)
@@ -59,9 +63,9 @@ The server provides 17 tools:
 - `decline_event` - Decline an event invitation
 
 ### Post Tools
-- `get_posts` - Get posts with filtering (type, includeComments, includeReadStatus, max, groupId, timestamps)
+- `get_posts` - Get posts with filtering (type: PLAIN/POLL/PAYMENT, includeComments, includeReadStatus, max, groupId, timestamps). POLL posts include a `poll` object (question, description, options with vote counts); PAYMENT posts (actual type `CLUB_PAYMENT`) include a `payment` object (status, amount)
 - `get_post_by_id` - Get specific post by ID
-- `search_posts` - Search posts by keyword
+- `search_posts` - Search posts by keyword (PLAIN posts only by default)
 - `get_posts_by_group` - Get posts from specific group
 
 ### Group Tools
@@ -73,6 +77,7 @@ The server provides 17 tools:
 - `get_attachment` - Fetch attachment using authenticated request
 - `convert_pdf_to_text` - Convert PDF to text (requires pdftotext)
 - `convert_docx_to_text` - Convert DOCX to text (requires docx2txt)
+- `convert_xlsx_to_text` - Convert XLSX/XLS spreadsheet to CSV text (requires ssconvert, part of the gnumeric package)
 
 ## MCP Resources
 

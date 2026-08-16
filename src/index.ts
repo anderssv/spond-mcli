@@ -11,7 +11,7 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { SpondCore, CoreError, CoreErrorCode, ToolCallResult, ResourceReadResult, ToolCallResultType } from './spond-core.js';
-import { getTokenAndMockMode } from './token-config.js';
+import { getTokenWithFileFallback } from './token-config.js';
 import { ISpondClient } from './spond-client-interface.js';
 import { SpondClient } from './spond-client.js';
 import { SpondClientFake } from './spond-client-fake.js';
@@ -40,7 +40,7 @@ class SpondMcpServer {
       if (spondClient) {
         this.core = new SpondCore(spondClient);
       } else {
-        const config = getTokenAndMockMode();
+        const config = getTokenWithFileFallback();
         const client = config.useMockData 
           ? SpondClientFake.withMockData()
           : new SpondClient(config.token, config.fetchFn);

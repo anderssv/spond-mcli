@@ -24,6 +24,17 @@ email/password (from SPOND_USERNAME/SPOND_PASSWORD, or an interactive
 prompt), or 'spond-mcli login --browser' for 2FA accounts. Set
 SPOND_TOKEN="mock-data" for mock data instead.
 
+Search: spond-mcli search <term> searches everything at once — events,
+plain posts, polls, and payment requests — tagging each result with
+kind ("event" or "post"). Prefer it over search-events/search-posts
+unless you specifically only want one type.
+
+File search is separate (Spond has no unified search including files):
+spond-mcli search-files <term> [--group <name>] [--content]
+Matches filenames across all your groups by default. Add --content to
+also download and text-search inside PDF/DOCX files — slower, opt-in,
+requires pdftotext/docx2txt.
+
 Accept/decline an event:
   1. spond-mcli upcoming
   2. spond-mcli my-members (memberIds for everyone you're a guardian for,
@@ -52,6 +63,10 @@ async function executeCommand(core: SpondCore, cmd: ApiCommand): Promise<{ data:
       return { data: await core.getUpcomingEvents(cmd.maxResults) };
     case 'searchEvents':
       return { data: await core.searchEvents(cmd.searchTerm, cmd.maxResults) };
+    case 'searchAll':
+      return { data: await core.searchAll(cmd.searchTerm, cmd.maxResults) };
+    case 'searchFiles':
+      return { data: await core.searchFiles(cmd.searchTerm, { groupName: cmd.groupName, content: cmd.content }, cmd.maxResults) };
     case 'getEventsByGroup':
       return { data: await core.getEventsByGroup(cmd.groupName, cmd.maxResults) };
     case 'getPosts':
@@ -82,6 +97,8 @@ async function executeCommand(core: SpondCore, cmd: ApiCommand): Promise<{ data:
       return { data: { message: await core.convertPdfToText(cmd.inputPath, cmd.outputPath) } };
     case 'convertDocxToText':
       return { data: { message: await core.convertDocxToText(cmd.inputPath, cmd.outputPath) } };
+    case 'convertXlsxToText':
+      return { data: { message: await core.convertXlsxToText(cmd.inputPath, cmd.outputPath) } };
   }
 }
 

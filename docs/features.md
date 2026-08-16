@@ -7,6 +7,15 @@ CLI/MCP tool set (2026-08-16).
 Each row is tagged with whether the underlying Spond feature requires group
 admin privileges to use, independent of whether spond-mcli implements it.
 
+## Search
+
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| Unified search across events + all post types (plain, poll, payment) in one call | ✅ Implemented | No | `spond-mcli search <term>` / MCP tool `search_all`, results tagged `kind: "event"\|"post"` |
+| Narrower single-type search | ✅ Implemented | No | `search_events`, `search_posts` (posts search only defaults to PLAIN) |
+| File search by filename, across all groups (or one with `--group`) | ✅ Implemented | No | `spond-mcli search-files <term>` / MCP tool `search_files`. Separate command — Spond has no unified search including files. Only covers the group Files tab, not post attachments (planned). |
+| File **content** search inside PDF/DOCX/XLSX (opt-in, downloads + converts each candidate file) | ✅ Implemented | No | `--content` flag / `content: true`. Slower — off by default. Spond's own UI file search is filename-only; this is something the UI itself can't do. |
+
 ## Events
 
 | Feature | Status | Admin? | Details |
@@ -37,22 +46,27 @@ admin privileges to use, independent of whether spond-mcli implements it.
 
 ## Polls
 
-Polls are their own object type in the UI (`/client/polls`), not a post subtype.
+Polls have their own tab in the UI (`/client/polls`), but under the hood
+they're just posts with `type=POLL` and a `poll` object (question,
+description, options with vote arrays) — the same `/core/v1/posts` endpoint
+`get_posts` already used.
 
 | Feature | Status | Admin? | Details |
 |---|---|---|---|
-| Read polls / results | ❌ Not implemented | No | |
+| Read polls / results | ✅ Implemented | No | `get_posts`/`search_all` with `type: 'POLL'`; question/description/vote counts surfaced |
 | Vote on a poll | ❌ Not implemented | No | |
-| Comment on a poll | ❌ Not implemented | No | |
+| Comment on a poll | ✅ Implemented (read) | No | Same `includeComments` mechanism as posts |
 | Create a poll | ❌ Not implemented | Either | |
 
 ## Payments
 
-Also its own object type (`/client/payments`), not a post subtype.
+Also its own tab (`/client/payments`), also just posts — `type=PAYMENT`
+returns items whose actual `type` is `CLUB_PAYMENT`, with a `clubPayment`
+object (title, amount, status).
 
 | Feature | Status | Admin? | Details |
 |---|---|---|---|
-| Read payment requests / paid status | ❌ Not implemented | No | |
+| Read payment requests / paid status | ✅ Implemented | No | `get_posts`/`search_all` with `type: 'PAYMENT'`; amount/status surfaced |
 | Create payment request | ❌ Not implemented | **Admin** | |
 
 ## Messages / Chat
@@ -98,6 +112,7 @@ Also its own object type (`/client/payments`), not a post subtype.
 | Fetch attachment | ✅ Implemented | No | `get_attachment` |
 | Convert PDF → text | ✅ Implemented | No | `convert_pdf_to_text` (requires pdftotext) |
 | Convert DOCX → text | ✅ Implemented | No | `convert_docx_to_text` (requires docx2txt) |
+| Convert XLSX/XLS → CSV text | ✅ Implemented | No | `convert_xlsx_to_text` (requires ssconvert, part of gnumeric) |
 
 ## Account / Auth / Tooling
 
@@ -113,19 +128,19 @@ Also its own object type (`/client/payments`), not a post subtype.
 ## Summary
 
 Everything currently implemented is non-admin, read access to member-visible
-data — events, posts, groups, files, plus the accept/decline write actions
-and the my-members convenience command. Everything admin-scoped (settings,
-member management, event/poll/payment creation, exports) is entirely
-unimplemented, as is a chunk of non-admin functionality: polls, payments,
-messages, notifications, and writing comments.
+data — events, posts (plain, poll, payment), groups, files, plus the
+accept/decline write actions, the my-members convenience command, and
+unified search across events and all post types. Everything admin-scoped
+(settings, member management, event/poll/payment creation, exports) is
+entirely unimplemented, as is a chunk of non-admin functionality: voting on
+polls, messages, notifications, and writing comments.
 
 ## Possible next features, roughly in order of value for a read-first,
 ## guardian-focused tool
 
-1. **Polls** (read + vote) — same tier as events/posts, currently a full gap
-2. **Payments** (read) — same tier, currently a full gap
-3. **Notifications feed** — "what's new across my groups"
-4. **Posting comments** on events/posts — small write addition
-5. Admin features (member management, event/poll/payment creation, group
+1. **Notifications feed** — "what's new across my groups"
+2. **Posting comments** on events/posts — small write addition
+3. **Voting on a poll** — small write addition
+4. Admin features (member management, event/poll/payment creation, group
    settings) — only relevant if/when the tool is used by group admins, not
    just guardians
