@@ -6,6 +6,17 @@
   "bin": {
     "spond-mcli": "dist/cli.js"
   },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anderssv/spond-mcli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/anderssv/spond-mcli/issues"
+  },
+  "homepage": "https://github.com/anderssv/spond-mcli#readme",
   "type": "module",
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
