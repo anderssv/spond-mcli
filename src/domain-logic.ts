@@ -29,6 +29,33 @@ export function resolveMyMembers(groups: SpondGroup[], myProfileId: string): MyM
   return result;
 }
 
+// Fields from a /auth2/login response that are safe to surface in an error
+// message. Anything outside this set (notably 2FA challenge tokens and
+// phoneNumber) is dropped to avoid leaking sensitive data into logs.
+const SAFE_LOGIN_ERROR_FIELDS = ['error', 'errorKey', 'errorCode', 'message'] as const;
+
+export function extractAccessToken(loginResult: Record<string, unknown>): string {
+  const accessToken = loginResult.accessToken;
+  if (accessToken && typeof accessToken === 'object') {
+    const token = (accessToken as Record<string, unknown>).token;
+    if (typeof token === 'string' && token) {
+      return token;
+    }
+  }
+
+  const safeFields: Record<string, unknown> = {};
+  for (const field of SAFE_LOGIN_ERROR_FIELDS) {
+    if (field in loginResult) {
+      safeFields[field] = loginResult[field];
+    }
+  }
+
+  const diagnostic = Object.keys(safeFields).length > 0
+    ? JSON.stringify(safeFields)
+    : '(no recognised diagnostic fields in response)';
+  throw new Error(`Login failed. ${diagnostic}`);
+}
+
 export enum AttendanceStatus {
   ACCEPTED = 'accepted',
   DECLINED = 'declined',

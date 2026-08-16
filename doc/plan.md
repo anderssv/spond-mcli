@@ -2,10 +2,12 @@
 
 ## Planned
 
-- Fix user/pw login: Replace the Playwright browser-scraping login flow with direct username/password authentication against the Spond API. Look at how the Python project (github.com/Starefossen/spond-no-match-mcp) implements login via the `spond` PyPI package and replicate its API calls (login endpoint, request/response shape) instead of launching a browser and scraping a token out of `localStorage`. This removes the Playwright/Chromium dependency and the fragility that comes with it (e.g. the base64-decode bug we already hit once).
 - CLI status command: Check external dependencies (pdftotext, docx2txt) and that the token works. Do not fail on missing items, just show what is working and what is not.
+- Review code for clean separation between input/parsing, logic, integration. Hexagonal style.
 
 ## Completed
+
+- Fix user/pw login (`spond-mcli login`): Replaced the Playwright browser-scraping login as the default with direct email/password authentication, matching the request/response shape documented in the community `spond` Python package (`POST /core/v1/auth2/login` with `{email, password}`, response `{accessToken: {token, expiration}}`). Credentials come from `SPOND_USERNAME`/`SPOND_PASSWORD` or an interactive terminal prompt (password input hidden via a small raw-mode reader in `src/prompt.ts`). Error messages only surface Spond's documented safe diagnostic fields (`error`, `errorKey`, `errorCode`, `message`) — never 2FA challenge tokens or phone numbers. Kept the old Playwright flow available as `spond-mcli login --browser` for accounts with 2FA enabled, since direct email/password login can't complete a 2FA challenge. Verified end-to-end against the real API — no more Chromium dependency for the default login path.
 
 - My members command (`spond-mcli my-members`): Lists memberIds of everyone you're a guardian for, across all groups, with names and group names attached — no need to dig through event details to find the right memberId. Fetches `getGroups()` once, resolves matches via a pure `resolveMyMembers()` domain function, caches the result to `~/.config/spond/members.json` (0600 permissions) with a 5-minute TTL so repeated calls don't hit the API. On refresh, only rewrites the cache (and logs to stderr) if the resolved member list actually changed. Verified end-to-end against the real API.
 

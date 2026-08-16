@@ -19,7 +19,7 @@ export type CliCommand =
   | { command: 'declineEvent'; eventId: string; memberId: string }
   | { command: 'convertPdfToText'; inputPath: string; outputPath: string }
   | { command: 'convertDocxToText'; inputPath: string; outputPath: string }
-  | { command: 'login' }
+  | { command: 'login'; browser: boolean }
   | { command: 'agentHelp' }
   | { command: 'mcp' }
   | { command: 'myMembers' };
@@ -46,7 +46,7 @@ Usage:
   spond-mcli my-members
   spond-mcli pdf-to-text <inputPath> <outputPath>
   spond-mcli docx-to-text <inputPath> <outputPath>
-  spond-mcli login
+  spond-mcli login [--browser]
   spond-mcli mcp
   spond-mcli --agent-help
 
@@ -59,7 +59,17 @@ MCP Server:
   preferred way to launch it — point your MCP client's command at
   'spond-mcli' with args ['mcp'] instead of invoking dist/index.js directly.
 
+Login:
+  'spond-mcli login' authenticates with your Spond email and password
+  (from SPOND_USERNAME/SPOND_PASSWORD, or prompted interactively) and
+  saves the token directly — no browser needed.
+  Use 'spond-mcli login --browser' instead if your account has 2FA
+  enabled; it opens a real browser window so you can complete 2FA
+  yourself, then extracts the token once you're logged in.
+
 Options:
+  --browser                  Log in via a browser window instead of email/password
+                              (needed for accounts with 2FA enabled)
   --max <n>                  Maximum number of results
   --include-comments         Include comments in the response
   --include-hidden           Include hidden events
@@ -231,7 +241,7 @@ export function parseArgs(argv: string[]): CliCommand | null {
   }
 
   if (args['login']) {
-    return { command: 'login' };
+    return { command: 'login', browser: !!args['--browser'] };
   }
 
   if (args['--agent-help']) {

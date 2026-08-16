@@ -1,7 +1,9 @@
 import { chromium } from 'playwright';
+import nodeFetch from 'node-fetch';
 import { writeFileSync, mkdirSync, chmodSync } from 'fs';
 import { dirname } from 'path';
 import { DEFAULT_TOKEN_FILE, validateSpondToken } from './token-config.js';
+import { extractAccessToken } from './domain-logic.js';
 
 export function extractTokenFromLocalStorage(rawValue: string | null): string | null {
   if (!rawValue) return null;
@@ -9,10 +11,37 @@ export function extractTokenFromLocalStorage(rawValue: string | null): string | 
 }
 
 const SPOND_CLIENT_URL = 'https://spond.com/client';
+const LOGIN_URL = 'https://api.spond.com/core/v1/auth2/login';
 const POLL_INTERVAL_MS = 1000;
 const LOGIN_TIMEOUT_MS = 120_000;
 
-export async function performLogin(tokenFilePath: string = DEFAULT_TOKEN_FILE): Promise<string> {
+function saveToken(token: string, tokenFilePath: string): void {
+  mkdirSync(dirname(tokenFilePath), { recursive: true });
+  writeFileSync(tokenFilePath, token, { encoding: 'utf-8', mode: 0o600 });
+  chmodSync(tokenFilePath, 0o600);
+}
+
+export async function performPasswordLogin(
+  email: string,
+  password: string,
+  tokenFilePath: string = DEFAULT_TOKEN_FILE,
+  fetchFn: typeof nodeFetch = nodeFetch
+): Promise<string> {
+  const response = await fetchFn(LOGIN_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+
+  const loginResult = await response.json() as Record<string, unknown>;
+  const token = extractAccessToken(loginResult);
+
+  saveToken(token, tokenFilePath);
+  console.error(`Token saved to ${tokenFilePath}`);
+  return token;
+}
+
+export async function performBrowserLogin(tokenFilePath: string = DEFAULT_TOKEN_FILE): Promise<string> {
   const browser = await chromium.launch({ headless: false });
   try {
     const context = await browser.newContext();
@@ -29,9 +58,7 @@ export async function performLogin(tokenFilePath: string = DEFAULT_TOKEN_FILE): 
       throw new Error(`Extracted token is invalid: ${validation.error}`);
     }
 
-    mkdirSync(dirname(tokenFilePath), { recursive: true });
-    writeFileSync(tokenFilePath, token, { encoding: 'utf-8', mode: 0o600 });
-    chmodSync(tokenFilePath, 0o600);
+    saveToken(token, tokenFilePath);
     console.error(`Token saved to ${tokenFilePath}`);
     return token;
   } finally {

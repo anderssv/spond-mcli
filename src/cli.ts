@@ -8,7 +8,8 @@ import { SpondCore, CoreError } from './spond-core.js';
 import { getTokenWithFileFallback } from './token-config.js';
 import { SpondClient } from './spond-client.js';
 import { SpondClientFake } from './spond-client-fake.js';
-import { performLogin } from './login.js';
+import { performBrowserLogin, performPasswordLogin } from './login.js';
+import { promptText, promptPassword } from './prompt.js';
 import { readMembersCache, writeMembersCache, membersEqual, isCacheFresh, DEFAULT_MEMBERS_CACHE_FILE } from './members-cache.js';
 
 const AGENT_HELP = `\
@@ -105,7 +106,13 @@ async function main(): Promise<void> {
 
   if (parsed.command === 'login') {
     try {
-      await performLogin();
+      if (parsed.browser) {
+        await performBrowserLogin();
+      } else {
+        const email = process.env.SPOND_USERNAME || await promptText('Spond email: ');
+        const password = process.env.SPOND_PASSWORD || await promptPassword('Spond password: ');
+        await performPasswordLogin(email, password);
+      }
     } catch (error) {
       console.error(`Login failed: ${(error as Error).message}`);
       process.exit(1);

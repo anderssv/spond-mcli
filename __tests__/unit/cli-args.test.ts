@@ -227,10 +227,16 @@ describe('CLI argument parsing', () => {
   });
 
   // Login command
-  it('"login" maps to login command', () => {
+  it('"login" maps to login command with browser=false', () => {
     const result = parseArgs(['login']);
 
-    expect(result).toEqual({ command: 'login' });
+    expect(result).toEqual({ command: 'login', browser: false });
+  });
+
+  it('"login --browser" maps to login command with browser=true', () => {
+    const result = parseArgs(['login', '--browser']);
+
+    expect(result).toEqual({ command: 'login', browser: true });
   });
 
   // Agent help command

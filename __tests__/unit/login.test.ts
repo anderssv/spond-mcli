@@ -1,3 +1,10 @@
+import { jest } from '@jest/globals';
+
+// Mock node-fetch to avoid ES module issues in tests
+jest.mock('node-fetch', () => ({
+  default: jest.fn()
+}));
+
 import { extractTokenFromLocalStorage, pollForToken } from '../../src/login.js';
 
 describe('extractTokenFromLocalStorage', () => {
