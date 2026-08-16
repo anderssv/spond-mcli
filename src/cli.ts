@@ -20,7 +20,9 @@ stderr and the process exits non-zero.
 
 Auth: reads SPOND_TOKEN, falling back to the token file at
 ~/.config/spond/token. Run 'spond-mcli login' to populate that file via
-a one-time browser login, or set SPOND_TOKEN="mock-data" for mock data.
+email/password (from SPOND_USERNAME/SPOND_PASSWORD, or an interactive
+prompt), or 'spond-mcli login --browser' for 2FA accounts. Set
+SPOND_TOKEN="mock-data" for mock data instead.
 
 Accept/decline an event:
   1. spond-mcli upcoming

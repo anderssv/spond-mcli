@@ -28,22 +28,20 @@ Spond is a platform for managing sports teams, events, and communication. And ca
 
 ## Getting Started
 
-1. Clone, build, and install the CLI globally:
+1. Install the CLI globally:
    ```bash
-   git clone <repo-url> && cd spond-mcli
-   npm install
-   npm run build
-   npm install -g .
+   npm install -g spond-mcli
    ```
-   This package isn't published to npm, so it must be installed from a local
-   clone — `npx spond-mcli` won't work.
+   Or run it without installing via `npx spond-mcli <command>`.
 
 2. Log in to Spond:
    ```bash
    spond-mcli login
    ```
-   This opens a browser window. Log in with your Spond credentials and the CLI will
-   automatically extract and save your token to `~/.config/spond/token`.
+   Enter your Spond email and password (or set `SPOND_USERNAME`/`SPOND_PASSWORD`
+   beforehand) and the CLI saves your token to `~/.config/spond/token`.
+   If your account has 2FA enabled, use `spond-mcli login --browser` instead —
+   it opens a real browser window so you can complete 2FA yourself.
 
 3. Verify it works:
    ```bash
@@ -51,6 +49,16 @@ Spond is a platform for managing sports teams, events, and communication. And ca
    ```
 
 That's it. The CLI and MCP server both read the token from `~/.config/spond/token` automatically.
+
+### Developing locally
+
+To work on the code itself instead of using the published package:
+```bash
+git clone <repo-url> && cd spond-mcli
+npm install
+npm run build
+npm install -g .
+```
 
 ## Features
 The server is (for now) read-only and provides access to Spond's core data structures:
@@ -102,8 +110,11 @@ The easiest way to get your token is with the CLI:
 spond-mcli login
 ```
 
-This opens a browser, you log in, and the token is saved to `~/.config/spond/token`.
+Enter your email and password when prompted (or set `SPOND_USERNAME`/`SPOND_PASSWORD`
+to skip the prompt) and the token is saved to `~/.config/spond/token`.
 Both the CLI and MCP server read from this file automatically.
+For accounts with 2FA enabled, use `spond-mcli login --browser` instead, which
+opens a real browser window so you can complete 2FA yourself.
 
 Alternatively, you can get the token manually:
 
