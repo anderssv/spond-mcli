@@ -9,7 +9,7 @@ module.exports = {
   ],
   testEnvironment: 'node',
   testMatch: ['**/__tests__/**/*.test.ts', '**/?(*.)+(spec|test).ts'],
-  testPathIgnorePatterns: ['<rootDir>/__tests__/core-real-api-integration.test.ts'],
+  testPathIgnorePatterns: ['<rootDir>/__tests__/system/core-real-api-integration.test.ts'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',

@@ -34,7 +34,6 @@
     "@modelcontextprotocol/sdk": "^1.27.1",
     "docopt": "^0.6.2",
     "dotenv": "^17.3.1",
-    "fs": "^0.0.1-security",
     "node-fetch": "^3.3.2",
     "playwright": "^1.58.2"
   },

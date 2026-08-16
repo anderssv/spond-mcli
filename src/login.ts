@@ -1,11 +1,11 @@
 import { chromium } from 'playwright';
-import { writeFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync, chmodSync } from 'fs';
 import { dirname } from 'path';
 import { DEFAULT_TOKEN_FILE, validateSpondToken } from './token-config.js';
 
-export function decodeTokenFromLocalStorage(rawValue: string | null): string | null {
+export function extractTokenFromLocalStorage(rawValue: string | null): string | null {
   if (!rawValue) return null;
-  return Buffer.from(rawValue, 'base64').toString('utf-8');
+  return rawValue;
 }
 
 const SPOND_CLIENT_URL = 'https://spond.com/client';
@@ -30,7 +30,8 @@ export async function performLogin(tokenFilePath: string = DEFAULT_TOKEN_FILE): 
     }
 
     mkdirSync(dirname(tokenFilePath), { recursive: true });
-    writeFileSync(tokenFilePath, token, 'utf-8');
+    writeFileSync(tokenFilePath, token, { encoding: 'utf-8', mode: 0o600 });
+    chmodSync(tokenFilePath, 0o600);
     console.error(`Token saved to ${tokenFilePath}`);
     return token;
   } finally {
@@ -38,15 +39,30 @@ export async function performLogin(tokenFilePath: string = DEFAULT_TOKEN_FILE): 
   }
 }
 
-async function pollForToken(page: import('playwright').Page): Promise<string> {
-  const deadline = Date.now() + LOGIN_TIMEOUT_MS;
+interface PollablePage {
+  evaluate(fn: () => string | null): Promise<string | null>;
+}
+
+export async function pollForToken(
+  page: PollablePage,
+  pollIntervalMs: number = POLL_INTERVAL_MS,
+  timeoutMs: number = LOGIN_TIMEOUT_MS
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const rawToken = await page.evaluate(() => window.localStorage.getItem('token'));
-    const decoded = decodeTokenFromLocalStorage(rawToken);
-    if (decoded) return decoded;
+    let rawToken: string | null = null;
+    try {
+      rawToken = await page.evaluate(() => window.localStorage.getItem('token'));
+    } catch {
+      // The SPA can navigate mid-poll, destroying the execution context.
+      // Treat that as "no token yet" and keep polling rather than aborting login.
+    }
 
-    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+    const extracted = extractTokenFromLocalStorage(rawToken);
+    if (extracted) return extracted;
+
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
   }
 
   throw new Error('Login timed out — no token found after 2 minutes');

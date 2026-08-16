@@ -120,7 +120,7 @@ All code changes in this project follow TDD. Use the `tdd` skill for the full pr
 8. **Plan tests as `[TEST]` comments** before implementing, using ZOMBIES for completeness (Zero, One, Many, Boundaries, Interfaces, Exceptions).
 
 ### Method
-- Maintain a tasks list in doc/plan.md to track progress and completed tasks.
+- Maintain a tasks list in [doc/plan.md](doc/plan.md) to track progress and completed tasks.
 - Maintain a session list in doc/sessions.md to track debugging sessions and decisions.
 - Update documentation as needed to reflect current state.
 - Write tests first to define expected behavior.

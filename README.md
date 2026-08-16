@@ -28,27 +28,29 @@ Spond is a platform for managing sports teams, events, and communication. And ca
 
 ## Getting Started
 
-1. Clone and build:
+1. Clone, build, and install the CLI globally:
    ```bash
    git clone <repo-url> && cd spond-mcli
    npm install
    npm run build
+   npm install -g .
    ```
+   This package isn't published to npm, so it must be installed from a local
+   clone — `npx spond` won't work.
 
 2. Log in to Spond:
    ```bash
-   npx spond login
+   spond login
    ```
    This opens a browser window. Log in with your Spond credentials and the CLI will
    automatically extract and save your token to `~/.config/spond/token`.
 
 3. Verify it works:
    ```bash
-   npx spond upcoming
+   spond upcoming
    ```
 
 That's it. The CLI and MCP server both read the token from `~/.config/spond/token` automatically.
-If you want to use the CLI globally, run `npm install -g .` and use `spond` directly.
 
 ## Features
 The server is (for now) read-only and provides access to Spond's core data structures:
@@ -62,7 +64,7 @@ The server is (for now) read-only and provides access to Spond's core data struc
 
 ## Prerequisites
 
-- Node.js 18 or higher
+- Node.js version pinned in `mise.toml` (run `mise install` to get it)
 - A valid Spond account with API access
 - Bearer token for authentication
 - Accessing attachments requires:
@@ -97,7 +99,7 @@ The server requires the `SPOND_TOKEN` environment variable to be set. This varia
 The easiest way to get your token is with the CLI:
 
 ```bash
-npx spond login
+spond login
 ```
 
 This opens a browser, you log in, and the token is saved to `~/.config/spond/token`.
