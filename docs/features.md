@@ -1,260 +1,131 @@
 # Spond Features Analysis - Detailed Implementation Coverage
 
-Based on in-depth exploration of the Spond web client interface and current MCP implementation analysis.
+Based on exploration of the Spond web client as both a regular group member and
+as a group administrator (the "Mytest" group), compared against the current
+CLI/MCP tool set (2026-08-16).
 
-These are the main end user features.
-I am not an admin of any groups, so those features have not been prioritized or analyzed in detail.
+Each row is tagged with whether the underlying Spond feature requires group
+admin privileges to use, independent of whether spond-mcli implements it.
 
-## Detailed Feature-by-Feature Analysis
+## Events
 
-### 🏠 **HOME / DASHBOARD FEATURES**
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| List/search/filter events | ✅ Implemented | No | `get_events`, `get_upcoming_events`, `search_events`, `get_events_by_group` |
+| Get event by ID, incl. members | ✅ Implemented | No | `get_event_by_id` |
+| Accept invitation | ✅ Implemented | No | `accept_event` / `spond-mcli accept-event` |
+| Decline invitation | ✅ Implemented | No | `decline_event` / `spond-mcli decline-event` |
+| Read comments on an event | ✅ Implemented | No | `includeComments` param |
+| Post a comment on an event | ❌ Not implemented | No | |
+| Aggregate attendance counts (e.g. "5 attending, 6 unanswered") | ❌ Not surfaced as a summary field | No | Raw data available via `responses`, just not summarized |
+| Send message to event host | ❌ Not implemented | No | This is really a Messages/Chat feature |
+| Waitlist join/leave | ❌ Not implemented | No | Waitlist status is readable via `responses.waitinglistIds` |
+| Create single event | ❌ Not implemented | **Admin** | |
+| Create recurring event | ❌ Not implemented | **Admin** | |
+| Season planner (schedule multiple events) | ❌ Not implemented | **Admin** | |
+| Edit / cancel / delete event | ❌ Not implemented | **Admin** | |
 
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| Event list view | ✅ **Available** | ✅ **Supported** | `get_events`, `get_upcoming_events` |
-| Event filtering by date range | ✅ **Available** | ✅ **Supported** | `minEndTimestamp`, `maxEndTimestamp` params |
-| Event grouping by timeframe | ✅ **Available** | ❌ **Not Supported** | Manual grouping required |
-| Event status indicators (cancelled) | ✅ **Available** | ✅ **Partial** | Status in event data, but no status filtering |
-| Quick event navigation | ✅ **Available** | ✅ **Supported** | `get_event_by_id` |
+## Posts
 
-### 📅 **EVENT MANAGEMENT**
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| List/search/filter posts | ✅ Implemented | No | `get_posts`, `search_posts`, `get_posts_by_group` |
+| Get post by ID | ✅ Implemented | No | `get_post_by_id` |
+| Read comments/reactions | ✅ Implemented | No | `includeComments` param |
+| Create a post | ❌ Not implemented | Either (member or admin, group-dependent) | |
+| Comment/react on a post | ❌ Not implemented | No | |
 
-#### Event Information (Read)
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| Event details view | ✅ **Available** | ✅ **Supported** | `get_event_by_id` with full details |
-| Event title/heading | ✅ **Available** | ✅ **Supported** | Included in event data |
-| Event description | ✅ **Available** | ✅ **Supported** | Full description or truncated in summaries |
-| Event date/time | ✅ **Available** | ✅ **Supported** | `startTimestamp`, `endTimestamp` |
-| Event location | ✅ **Available** | ✅ **Supported** | Location object with address, coordinates |
-| Event hosts/owners | ✅ **Available** | ✅ **Supported** | Owners array with contact details |
-| Participant limits | ✅ **Available** | ✅ **Supported** | Shown in event interface ("0 of 14 spots") |
-| Group association | ✅ **Available** | ✅ **Supported** | `recipients.group` information |
-| Event cancellation status | ✅ **Available** | ✅ **Supported** | Visible in interface and event data |
+## Polls
 
-#### Event Responses/Attendance  
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| View attendance lists | ✅ **Available** | ✅ **Supported** | `responses` object with acceptedIds, declinedIds, etc. |
-| View attendance counts | ✅ **Available** | ✅ **Supported** | "0 attending, 85 unanswered, 0 declined" |
-| Accept event invitation | ✅ **Available** | ❌ **Not Supported** | Accept/Decline buttons seen but no API |
-| Decline event invitation | ✅ **Available** | ❌ **Not Supported** | No POST/PUT endpoints implemented |
-| Change attendance response | ✅ **Available** | ❌ **Not Supported** | No response modification API |
-| Waitlist functionality | ✅ **Available** | ❌ **Not Supported** | Read waitlist but can't join/leave |
-| Guardian/child responses | ✅ **Available** | ❌ **Not Supported** | Can see child status but can't respond |
-| Response on behalf of others | ✅ **Available** | ❌ **Not Supported** | Interface shows "Answering on behalf of [child's name]" |
+Polls are their own object type in the UI (`/client/polls`), not a post subtype.
 
-#### Event Creation/Management
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| Create new event | ✅ **Available** | ❌ **Not Supported** | No POST endpoints for event creation |
-| Edit event details | ✅ **Available** | ❌ **Not Supported** | No PUT/PATCH endpoints |
-| Cancel event | ✅ **Available** | ❌ **Not Supported** | Can see cancelled events but can't cancel |
-| Delete event | ✅ **Available** | ❌ **Not Supported** | No DELETE endpoints |
-| Recurring events | ✅ **Available** | ❌ **Not Supported** | No support for event series management |
-| Event templates | ✅ **Available** | ❌ **Not Supported** | No template system access |
-| Hide event in list | ✅ **Available** | ❌ **Not Supported** | "Hide in event list" option seen |
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| Read polls / results | ❌ Not implemented | No | |
+| Vote on a poll | ❌ Not implemented | No | |
+| Comment on a poll | ❌ Not implemented | No | |
+| Create a poll | ❌ Not implemented | Either | |
 
-### 💬 **MESSAGING & COMMUNICATION**
+## Payments
 
-#### Posts/Messages (Read)
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| View group posts | ✅ **Available** | ✅ **Supported** | `get_posts`, `get_posts_by_group` |
-| View individual post | ✅ **Available** | ✅ **Supported** | `get_post_by_id` |
-| Post search | ✅ **Available** | ✅ **Supported** | `search_posts` by title/body content |
-| Post types (plain, poll, payment) | ✅ **Available** | ✅ **Supported** | Type filtering in `get_posts` |
-| Post attachments | ✅ **Available** | ✅ **Supported** | `get_attachment` for downloading files |
-| Post comments | ✅ **Available** | ✅ **Supported** | Comments included in post data |
-| Read status tracking | ✅ **Available** | ✅ **Supported** | `unread` field in post data |
-| Post reactions/likes | ✅ **Available** | ✅ **Supported** | Reactions data included |
+Also its own object type (`/client/payments`), not a post subtype.
 
-#### Posts/Messages (Write)
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| Create new post | ✅ **Available** | ❌ **Not Supported** | No POST endpoints for posts |
-| Reply to posts | ✅ **Available** | ❌ **Not Supported** | No comment creation API |
-| Edit posts | ✅ **Available** | ❌ **Not Supported** | No PUT/PATCH for posts |
-| Delete posts | ✅ **Available** | ❌ **Not Supported** | No DELETE endpoints |
-| Add reactions/likes | ✅ **Available** | ❌ **Not Supported** | Can see reactions but can't add |
-| Mark as read | ✅ **Available** | ❌ **Not Supported** | No read status update API |
-| Post attachments upload | ✅ **Available** | ❌ **Not Supported** | No file upload endpoints |
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| Read payment requests / paid status | ❌ Not implemented | No | |
+| Create payment request | ❌ Not implemented | **Admin** | |
 
-#### Direct Messaging
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| Send message to hosts | ✅ **Available** | ❌ **Not Supported** | "Send message to hosts" button seen |
-| Private messages | ✅ **Available** | ❌ **Not Supported** | No direct messaging API |
-| Message threads | ✅ **Available** | ❌ **Not Supported** | No thread management |
+## Messages / Chat
 
-#### Event Comments
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| View event comments | ✅ **Available** | ✅ **Supported** | Comments included in event data |
-| Add event comments | ✅ **Available** | ❌ **Not Supported** | "Comments are disabled" seen for some events |
-| Comment moderation | ✅ **Available** | ❌ **Not Supported** | Admin can disable comments |
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| Read/send private or group chat | ❌ Not implemented | No | "Mine" tab |
+| "My children" chat view | ❌ Not implemented | No | |
 
-### 👥 **GROUP MANAGEMENT**
+## Groups
 
-#### Group Information (Read)
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| List user groups | ✅ **Available** | ✅ **Supported** | `get_groups` with all accessible groups |
-| Group details | ✅ **Available** | ✅ **Supported** | Full group info including members |
-| Member lists | ✅ **Available** | ✅ **Supported** | Members array with contact details |
-| Group activity type | ✅ **Available** | ✅ **Supported** | Activity field in group data |
-| Contact person info | ✅ **Available** | ✅ **Supported** | Contact person details |
-| Group creation date | ✅ **Available** | ✅ **Supported** | `createdTime` field |
-| Group images | ✅ **Available** | ✅ **Supported** | `imageUrl` field |
-| Group navigation | ✅ **Available** | ✅ **Supported** | Side navigation shows all groups |
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| List groups | ✅ Implemented | No | `get_groups` |
+| Get group members | ✅ Implemented | No | Embedded in `get_groups`/`get_group_by_id`, not a dedicated tool |
+| Get group files / download a file | ✅ Implemented | No | `get_group_files`, `get_group_file` |
+| **My members** (your guardian relationships across all groups, with names, cached 5min) | ✅ Implemented | No | `spond-mcli my-members` |
+| Add/edit/delete a member, import from Excel | ❌ Not implemented | **Admin** | |
+| Invite link management | ❌ Not implemented | **Admin** | |
+| Group settings (name, contact person, visibility, chat limits, etc.) | ❌ Not implemented | **Admin** | |
+| Create subgroup | ❌ Not implemented | **Admin** | |
+| Leave / delete group | ❌ Not implemented | **Admin** | |
+| Download member list (Excel) | ❌ Not implemented | **Admin** | |
+| Download/export attendance history | ❌ Not implemented | **Admin** | |
 
-#### Group Management (Write)
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| Create new group | ✅ **Available** | ❌ **Not Supported** | No group creation API |
-| Edit group settings | ✅ **Available** | ❌ **Not Supported** | No group modification endpoints |
-| Invite members | ✅ **Available** | ❌ **Not Supported** | No member invitation API |
-| Remove members | ✅ **Available** | ❌ **Not Supported** | No member management API |
-| Assign roles | ✅ **Available** | ❌ **Not Supported** | Can see roles but can't assign |
-| Set group permissions | ✅ **Available** | ❌ **Not Supported** | No permission management |
+## Fundraising
 
-### 📁 **FILE MANAGEMENT**
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| View campaigns / success stories | ❌ Not implemented | No | |
+| Create campaign | ❌ Not implemented | **Admin** | |
 
-#### File Access (Read)
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| List group files | ✅ **Available** | ✅ **Supported** | `get_group_files` |
-| Download files | ✅ **Available** | ✅ **Supported** | `get_group_file`, `get_attachment` |
-| File metadata | ✅ **Available** | ✅ **Supported** | File size, type, creation date |
-| PDF text extraction | ✅ **Available** | ✅ **Supported** | `convert_pdf_to_text` |
-| DOCX text extraction | ✅ **Available** | ✅ **Supported** | `convert_docx_to_text` |
+## Notifications
 
-#### File Management (Write)
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| Upload files | ✅ **Available** | ❌ **Not Supported** | No file upload endpoints |
-| Delete files | ✅ **Available** | ❌ **Not Supported** | No file deletion API |
-| Organize folders | ✅ **Available** | ❌ **Not Supported** | No folder management |
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| Activity feed (accepts, comments, time changes, etc. across all your groups) | ❌ Not implemented | No | Could make a nice "what's new" command |
 
-### 💳 **PAYMENT SYSTEM**
+## Attachments / Documents
 
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| View payment requests | ✅ **Available** | ✅ **Partial** | Payment post type exists in `get_posts` |
-| Make payments | ✅ **Available** | ❌ **Not Supported** | No payment processing API |
-| Payment history | ✅ **Available** | ❌ **Not Supported** | User menu shows "Payment" option |
-| Create payment requests | ✅ **Available** | ❌ **Not Supported** | No payment request creation |
-| Fundraising campaigns | ✅ **Available** | ❌ **Not Supported** | Fundraising button seen but no API |
-| Financial reporting | ✅ **Available** | ❌ **Not Supported** | No financial data endpoints |
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| Fetch attachment | ✅ Implemented | No | `get_attachment` |
+| Convert PDF → text | ✅ Implemented | No | `convert_pdf_to_text` (requires pdftotext) |
+| Convert DOCX → text | ✅ Implemented | No | `convert_docx_to_text` (requires docx2txt) |
 
-### 👤 **USER PROFILE & SETTINGS**
+## Account / Auth / Tooling
 
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| View profile | ✅ **Available** | ❌ **Not Supported** | Profile menu option seen |
-| Edit profile | ✅ **Available** | ❌ **Not Supported** | No profile update API |
-| User preferences | ✅ **Available** | ❌ **Not Supported** | No settings endpoints |
-| Notification settings | ✅ **Available** | ❌ **Not Supported** | No notification management |
-| Privacy settings | ✅ **Available** | ❌ **Not Supported** | No privacy controls |
-| Guardian relationships | ✅ **Available** | ❌ **Not Supported** | Can see guardians but can't manage |
-| Logout functionality | ✅ **Available** | ❌ **Not Supported** | "Log out" option in user menu |
+| Feature | Status | Admin? | Details |
+|---|---|---|---|
+| Login via email/password | ✅ Implemented | No | `spond-mcli login`, matches the community `spond` Python package's `/auth2/login` |
+| Login via browser (2FA accounts) | ✅ Implemented | No | `spond-mcli login --browser` |
+| CLI | ✅ Implemented | No | `spond-mcli <command>`, JSON output |
+| MCP server | ✅ Implemented | No | `spond-mcli mcp`, stdio |
+| Agent-oriented help | ✅ Implemented | No | `spond-mcli --agent-help` |
+| Profile settings, payment methods | ❌ Not implemented | No (own account, not group-admin) | |
 
-### 📊 **POLLING SYSTEM**
+## Summary
 
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| View polls | ✅ **Available** | ✅ **Supported** | POLL post type in `get_posts` |
-| Vote in polls | ✅ **Available** | ❌ **Not Supported** | No voting API |
-| Create polls | ✅ **Available** | ❌ **Not Supported** | No poll creation API |
-| Poll results | ✅ **Available** | ✅ **Supported** | Results in poll post data |
+Everything currently implemented is non-admin, read access to member-visible
+data — events, posts, groups, files, plus the accept/decline write actions
+and the my-members convenience command. Everything admin-scoped (settings,
+member management, event/poll/payment creation, exports) is entirely
+unimplemented, as is a chunk of non-admin functionality: polls, payments,
+messages, notifications, and writing comments.
 
-### 🔍 **SEARCH & FILTERING**
+## Possible next features, roughly in order of value for a read-first,
+## guardian-focused tool
 
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| Search events | ✅ **Available** | ✅ **Supported** | `search_events` by title/description |
-| Search posts | ✅ **Available** | ✅ **Supported** | `search_posts` by title/body |
-| Filter by group | ✅ **Available** | ✅ **Supported** | `get_events_by_group`, `get_posts_by_group` |
-| Filter by date range | ✅ **Available** | ✅ **Supported** | Date range parameters |
-| Advanced filters | ✅ **Available** | ✅ **Partial** | Some filters supported, others missing |
-| Saved searches | ✅ **Available** | ❌ **Not Supported** | No saved search functionality |
-
-### 🆘 **HELP & SUPPORT**
-
-| Feature | Status | MCP Support | Details |
-|---------|--------|-------------|---------|  
-| Help documentation | ✅ **Available** | ❌ **Not Supported** | Help link in sidebar |
-| Feedback system | ✅ **Available** | ❌ **Not Supported** | Feedback link in sidebar |
-| Social media links | ✅ **Available** | ❌ **Not Supported** | Facebook link in sidebar |
-
-## Summary Statistics
-
-- **Total Features Identified**: ~85 specific features
-- **✅ Fully Supported**: 27 features (32%)
-- **🟨 Partially Supported**: 3 features (4%)
-- **❌ Not Supported**: 55 features (64%)
-
-## Key Limitations
-
-### 1. No Write Operations
-All modification operations are unsupported:
-- ❌ Cannot respond to events (accept/decline)
-- ❌ Cannot create posts or comments  
-- ❌ Cannot upload files
-- ❌ Cannot manage group settings
-
-### 2. No Interactive Features
-User interaction capabilities are missing:
-- ❌ Cannot participate in polls
-- ❌ Cannot add reactions to posts
-- ❌ Cannot send messages to hosts
-- ❌ Cannot update read status
-
-### 3. No User Management
-Profile and settings management unavailable:
-- ❌ Cannot access or modify profile
-- ❌ Cannot change notification settings
-- ❌ Cannot manage guardian relationships
-
-### 4. No Payment Integration
-Financial features completely absent:
-- ❌ Cannot make payments
-- ❌ Cannot create payment requests
-- ❌ Cannot access payment history
-
-### 5. No Administrative Functions
-Group and event management unavailable:
-- ❌ Cannot create or edit events
-- ❌ Cannot manage group members
-- ❌ Cannot assign roles or permissions
-
-## Recommendations for Future Development
-
-### High Priority (Most Commonly Used)
-1. **Event Response System** - `respond_to_event(eventId, response)` for accept/decline
-2. **Basic Post Creation** - `create_post(groupId, title, body)` 
-3. **Comment System** - `add_comment(postId, text)`
-4. **Event Visibility** - `hide_event(eventId)` and `show_event(eventId)`
-
-### Medium Priority (Frequently Requested)
-1. **User Profile Access** - `get_profile()` for basic user information
-2. **Poll Interaction** - `vote_in_poll(pollId, choice)`
-3. **Message to Hosts** - `send_message_to_hosts(eventId, message)`
-4. **Read Status Updates** - `mark_as_read(postId)`
-
-### Low Priority (Advanced Features)
-1. **File Upload** - `upload_file(groupId, filePath, description)`
-2. **Group Creation** - Basic group management for power users
-3. **Payment Viewing** - Read-only access to payment information
-4. **Notification Access** - `get_notifications()` for user alerts
-
-## Conclusion
-
-The current Spond MCP implementation provides **comprehensive read-only access** to the Spond platform with excellent coverage of data retrieval, search, and file management capabilities. It serves as an outstanding tool for:
-
-- 📊 **Data Analysis** - Complete access to events, posts, and member information
-- 🔍 **Information Retrieval** - Powerful search and filtering across all data types  
-- 📁 **File Management** - Download and text extraction from group files
-- 📈 **Reporting** - Export and analyze participation patterns and group activity
-
-While it lacks interactive capabilities, this limitation ensures **security and stability** while providing valuable read-only integration possibilities for analytics, reporting, and data export use cases.
+1. **Polls** (read + vote) — same tier as events/posts, currently a full gap
+2. **Payments** (read) — same tier, currently a full gap
+3. **Notifications feed** — "what's new across my groups"
+4. **Posting comments** on events/posts — small write addition
+5. Admin features (member management, event/poll/payment creation, group
+   settings) — only relevant if/when the tool is used by group admins, not
+   just guardians
