@@ -307,10 +307,22 @@ describe('CLI argument parsing', () => {
   });
 
   // MCP server command
-  it('"mcp" maps to mcp command', () => {
+  it('"mcp" maps to mcp command over stdio by default', () => {
     const result = parseArgs(['mcp']);
 
-    expect(result).toEqual({ command: 'mcp' });
+    expect(result).toEqual({ command: 'mcp', http: false, port: undefined });
+  });
+
+  it('"mcp --http" maps to mcp command with http=true, default port', () => {
+    const result = parseArgs(['mcp', '--http']);
+
+    expect(result).toEqual({ command: 'mcp', http: true, port: undefined });
+  });
+
+  it('"mcp --http --port 9000" maps to mcp command with http=true and the given port', () => {
+    const result = parseArgs(['mcp', '--http', '--port', '9000']);
+
+    expect(result).toEqual({ command: 'mcp', http: true, port: 9000 });
   });
 
   // My members command

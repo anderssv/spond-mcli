@@ -24,7 +24,7 @@ export type CliCommand =
   | { command: 'convertXlsxToText'; inputPath: string; outputPath: string }
   | { command: 'login'; browser: boolean }
   | { command: 'agentHelp' }
-  | { command: 'mcp' }
+  | { command: 'mcp'; http: boolean; port?: number }
   | { command: 'myMembers' };
 
 const USAGE = `\
@@ -53,7 +53,7 @@ Usage:
   spond-mcli docx-to-text <inputPath> <outputPath>
   spond-mcli xlsx-to-text <inputPath> <outputPath>
   spond-mcli login [--browser]
-  spond-mcli mcp
+  spond-mcli mcp [--http] [--port <n>]
   spond-mcli --agent-help
 
 For AI agents:
@@ -80,6 +80,17 @@ MCP Server:
   preferred way to launch it — point your MCP client's command at
   'spond-mcli' with args ['mcp'] instead of invoking dist/index.js directly.
 
+  Run 'spond-mcli mcp --http [--port <n>]' instead to serve it over HTTP
+  (default port 8080, or $PORT) for a remote deployment — e.g. a client
+  connecting from another machine, not a locally-spawned process.
+  The stdio and file-based auth (SPOND_TOKEN / ~/.config/spond/token)
+  don't apply in HTTP mode: each request must carry its own token in an
+  'Authorization: Bearer <token>' header, since a remote server can't
+  read your local token file. Sequence: (1) run 'spond-mcli login'
+  locally to obtain the token, (2) put that token in the Authorization
+  header field of your MCP client's config for the remote endpoint
+  (e.g. https://your-deployment/mcp).
+
 Login:
   'spond-mcli login' authenticates with your Spond email and password
   (from SPOND_USERNAME/SPOND_PASSWORD, or prompted interactively) and
@@ -91,6 +102,8 @@ Login:
 Options:
   --browser                  Log in via a browser window instead of email/password
                               (needed for accounts with 2FA enabled)
+  --http                     Serve the MCP server over HTTP instead of stdio
+  --port <n>                 Port for --http mode (default 8080, or $PORT)
   --max <n>                  Maximum number of results
   --include-comments         Include comments in the response
   --include-hidden           Include hidden events
@@ -298,7 +311,11 @@ export function parseArgs(argv: string[]): CliCommand | null {
   }
 
   if (args['mcp']) {
-    return { command: 'mcp' };
+    return {
+      command: 'mcp',
+      http: !!args['--http'],
+      port: args['--port'] ? Number(args['--port']) : undefined
+    };
   }
 
   if (args['my-members']) {

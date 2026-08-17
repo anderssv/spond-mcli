@@ -6,8 +6,7 @@ import { dirname, join } from 'path';
 import { parseArgs, USAGE, CliCommand } from './cli-args.js';
 import { SpondCore, CoreError } from './spond-core.js';
 import { getTokenWithFileFallback } from './token-config.js';
-import { SpondClient } from './spond-client.js';
-import { SpondClientFake } from './spond-client-fake.js';
+import { buildSpondClient } from './client-factory.js';
 import { performBrowserLogin, performPasswordLogin } from './login.js';
 import { promptText, promptPassword } from './prompt.js';
 import { readMembersCache, writeMembersCache, membersEqual, isCacheFresh, DEFAULT_MEMBERS_CACHE_FILE } from './members-cache.js';
@@ -115,6 +114,13 @@ async function main(): Promise<void> {
   }
 
   if (parsed.command === 'mcp') {
+    if (parsed.http) {
+      const { startHttpServer } = await import('./http-server.js');
+      const port = parsed.port ?? (Number(process.env.PORT) || 8080);
+      await startHttpServer(port);
+      return;
+    }
+
     const indexJsPath = join(dirname(fileURLToPath(import.meta.url)), 'index.js');
     const child = spawn(process.execPath, [indexJsPath], { stdio: 'inherit' });
     const exitCode = await new Promise<number>((resolve) => {
@@ -140,9 +146,7 @@ async function main(): Promise<void> {
   }
 
   const config = getTokenWithFileFallback();
-  const client = config.useMockData
-    ? SpondClientFake.withMockData()
-    : new SpondClient(config.token, config.fetchFn);
+  const client = buildSpondClient(config.token, config.fetchFn);
 
   const core = new SpondCore(client);
 
