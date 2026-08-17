@@ -6,6 +6,12 @@ import type { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryPara
 import { getConverterCommand } from './domain-logic.js';
 import { convertFileToText } from './file-converter.js';
 
+// searchEvents/searchPosts fetch a window of raw records and filter client-side
+// (the Spond API has no server-side search). This window must stay decoupled
+// from the caller's maxResults — a match past the front of the raw feed would
+// otherwise be silently invisible to a small maxResults request.
+const SEARCH_SCAN_WINDOW = 200;
+
 export class SpondClient implements ISpondClient {
   private readonly baseUrl = 'https://api.spond.com';
   private readonly apiLevel = '2.7.9';
@@ -183,15 +189,15 @@ export class SpondClient implements ISpondClient {
   }
 
   async searchEvents(searchTerm: string, maxResults: number = 50): Promise<SpondEvent[]> {
-    const events = await this.getEvents({ max: maxResults });
-    
+    const events = await this.getEvents({ max: SEARCH_SCAN_WINDOW });
+
     const lowerSearchTerm = searchTerm.toLowerCase();
-    
-    return events.filter(event => 
+
+    return events.filter(event =>
       (event.heading?.toLowerCase()?.includes(lowerSearchTerm)) ||
       (event.description?.toLowerCase()?.includes(lowerSearchTerm)) ||
       (event.recipients?.group?.name?.toLowerCase()?.includes(lowerSearchTerm))
-    );
+    ).slice(0, maxResults);
   }
 
   async getPosts(params: SpondPostsQueryParams = {}): Promise<SpondPost[]> {
@@ -269,14 +275,14 @@ export class SpondClient implements ISpondClient {
   }
 
   async searchPosts(searchTerm: string, maxResults: number = 50): Promise<SpondPost[]> {
-    const posts = await this.getPosts({ max: maxResults });
-    
+    const posts = await this.getPosts({ max: SEARCH_SCAN_WINDOW });
+
     const lowerSearchTerm = searchTerm.toLowerCase();
-    
-    return posts.filter(post => 
+
+    return posts.filter(post =>
       (post.title?.toLowerCase()?.includes(lowerSearchTerm)) ||
       (post.body?.toLowerCase()?.includes(lowerSearchTerm))
-    );
+    ).slice(0, maxResults);
   }
 
   async getGroups(): Promise<SpondGroup[]> {

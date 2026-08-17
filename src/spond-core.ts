@@ -8,6 +8,12 @@ import { dirname } from 'path';
 
 const PREVIEW_MAX_CHARS = 2000;
 
+// searchAll fetches a window of raw posts per type and filters client-side —
+// this window must stay decoupled from maxResults, same reasoning as
+// SpondClient.searchEvents/searchPosts, otherwise a match past the front of
+// the raw feed is silently invisible to a small maxResults request.
+const SEARCH_ALL_POST_SCAN_WINDOW = 200;
+
 export { CoreErrorCode, ToolCallResultType, CoreError } from './errors.js';
 import { CoreErrorCode, ToolCallResultType, CoreError } from './errors.js';
 
@@ -16,6 +22,23 @@ function requireParams<T extends Record<string, unknown>>(params: T, ...names: (
     if (!params[name]) {
       throw new CoreError(CoreErrorCode.InvalidParams, `${name} is required`);
     }
+  }
+}
+
+function requireString<T extends Record<string, unknown>>(params: T, name: keyof T & string): void {
+  if (typeof params[name] !== 'string') {
+    throw new CoreError(CoreErrorCode.InvalidParams, `${name} must be a string`);
+  }
+}
+
+function validateMaxResults<T extends Record<string, unknown>>(params: T, name: keyof T & string, min: number, max: number): void {
+  const value = params[name];
+  if (value === undefined) return;
+  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) {
+    throw new CoreError(CoreErrorCode.InvalidParams, `${name} must be a whole number`);
+  }
+  if (value < min || value > max) {
+    throw new CoreError(CoreErrorCode.InvalidParams, `${name} must be between ${min} and ${max}`);
   }
 }
 
@@ -138,7 +161,7 @@ export class SpondCore {
 
     const [events, ...postLists] = await Promise.all([
       this.spondClient.searchEvents(searchTerm, maxResults),
-      ...postTypes.map(type => this.spondClient.getPosts({ type, max: maxResults }))
+      ...postTypes.map(type => this.spondClient.getPosts({ type, max: SEARCH_ALL_POST_SCAN_WINDOW }))
     ]);
 
     const [userProfileId, groups] = await Promise.all([
@@ -879,11 +902,13 @@ export class SpondCore {
         }
 
         case 'search_events': {
-          const { searchTerm, maxResults = 50 } = params as { 
-            searchTerm: string; 
-            maxResults?: number; 
+          const { searchTerm, maxResults = 50 } = params as {
+            searchTerm: string;
+            maxResults?: number;
           };
           requireParams(params, 'searchTerm');
+          requireString(params, 'searchTerm');
+          validateMaxResults(params, 'maxResults', 1, 100);
           return {
             data: await this.searchEvents(searchTerm, maxResults),
             type: ToolCallResultType.Success
@@ -934,6 +959,8 @@ export class SpondCore {
             maxResults?: number;
           };
           requireParams(params, 'searchTerm');
+          requireString(params, 'searchTerm');
+          validateMaxResults(params, 'maxResults', 1, 100);
           return {
             data: await this.searchPosts(searchTerm, maxResults),
             type: ToolCallResultType.Success
@@ -947,6 +974,8 @@ export class SpondCore {
             query?: string;
           };
           requireParams(params, 'searchTerm');
+          requireString(params, 'searchTerm');
+          validateMaxResults(params, 'maxResults', 1, 100);
           return {
             data: applyQuery(await this.searchAll(searchTerm, maxResults), query),
             type: ToolCallResultType.Success

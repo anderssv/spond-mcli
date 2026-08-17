@@ -305,6 +305,48 @@ describe('SpondCore Independent Unit Tests', () => {
       expect(results.some(r => (r as any).id === 'other-plain')).toBe(false);
     });
 
+    test('should find a matching post even when it is outside the front of the raw post feed for a small maxResults', async () => {
+      const client = new SpondClientFake();
+      // 20 non-matching, newer posts, then the matching one further back —
+      // a naive fetch-then-filter with the window tied to maxResults would
+      // never see this post when maxResults is small.
+      for (let i = 0; i < 20; i++) {
+        client.addPost({
+          id: `noise-${i}`,
+          type: 'PLAIN',
+          groupId: 'group-1',
+          title: `Unrelated update ${i}`,
+          body: 'nothing relevant',
+          ownerId: 'owner-1',
+          timestamp: new Date(Date.now() - i * 1000).toISOString(),
+          visibility: 'ALL',
+          unread: false,
+          commentsDisabled: false,
+          muted: false,
+          selectMemberPoll: false
+        } as any);
+      }
+      client.addPost({
+        id: 'match-post',
+        type: 'PLAIN',
+        groupId: 'group-1',
+        title: 'Workshop Announcement',
+        body: 'Join us for the workshop',
+        ownerId: 'owner-1',
+        timestamp: new Date(Date.now() - 100000).toISOString(),
+        visibility: 'ALL',
+        unread: false,
+        commentsDisabled: false,
+        muted: false,
+        selectMemberPoll: false
+      } as any);
+      const myCore = new SpondCore(client);
+
+      const results = await myCore.searchAll('Workshop', 5);
+
+      expect(results.some(r => (r as any).id === 'match-post')).toBe(true);
+    });
+
     test('should respect maxResults across the combined results', async () => {
       const client = new SpondClientFake();
       for (let i = 0; i < 5; i++) {

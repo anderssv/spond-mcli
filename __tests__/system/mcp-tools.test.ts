@@ -299,6 +299,36 @@ describe('MCP Tool Capabilities for Users', () => {
       ).rejects.toThrow('searchTerm is required');
     });
 
+    test('should reject a non-string searchTerm for search_posts with a clear InvalidParams error', async () => {
+      await expect(
+        core.processToolCall('search_posts', { searchTerm: 123 })
+      ).rejects.toThrow(CoreError);
+    });
+
+    test('should reject an invalid maxResults for search_posts with a clear InvalidParams error', async () => {
+      await expect(
+        core.processToolCall('search_posts', { searchTerm: 'Gaming', maxResults: 0 })
+      ).rejects.toThrow(CoreError);
+    });
+
+    test('should require searchTerm for search_events', async () => {
+      await expect(
+        core.processToolCall('search_events', {})
+      ).rejects.toThrow('searchTerm is required');
+    });
+
+    test('should reject a non-string searchTerm for search_events with a clear InvalidParams error', async () => {
+      await expect(
+        core.processToolCall('search_events', { searchTerm: 123 })
+      ).rejects.toThrow(CoreError);
+    });
+
+    test('should reject an invalid maxResults for search_events with a clear InvalidParams error', async () => {
+      await expect(
+        core.processToolCall('search_events', { searchTerm: 'Gaming', maxResults: 0 })
+      ).rejects.toThrow(CoreError);
+    });
+
     test('should search across events and posts at once via search_all', async () => {
       const result = await core.processToolCall('search_all', {
         searchTerm: 'Gaming',
@@ -326,6 +356,36 @@ describe('MCP Tool Capabilities for Users', () => {
       await expect(
         core.processToolCall('search_all', {})
       ).rejects.toThrow('searchTerm is required');
+    });
+
+    test('should reject a non-string searchTerm with a clear InvalidParams error', async () => {
+      await expect(
+        core.processToolCall('search_all', { searchTerm: 123 })
+      ).rejects.toThrow(CoreError);
+
+      try {
+        await core.processToolCall('search_all', { searchTerm: 123 });
+        fail('expected processToolCall to throw');
+      } catch (error) {
+        expect((error as CoreError).code).toBe(CoreErrorCode.InvalidParams);
+        expect((error as Error).message).toContain('searchTerm');
+      }
+    });
+
+    test('should reject a non-positive maxResults with a clear InvalidParams error', async () => {
+      await expect(
+        core.processToolCall('search_all', { searchTerm: 'Gaming', maxResults: 0 })
+      ).rejects.toThrow(CoreError);
+
+      await expect(
+        core.processToolCall('search_all', { searchTerm: 'Gaming', maxResults: -5 })
+      ).rejects.toThrow(CoreError);
+    });
+
+    test('should reject a non-numeric maxResults with a clear InvalidParams error', async () => {
+      await expect(
+        core.processToolCall('search_all', { searchTerm: 'Gaming', maxResults: 'abc' })
+      ).rejects.toThrow(CoreError);
     });
 
     test('should retrieve posts by group name', async () => {
