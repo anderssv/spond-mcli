@@ -195,6 +195,32 @@ $ claude mcp add spond-mcli spond-mcli mcp -e SPOND_TOKEN="your-token-here"
 $ claude mcp add spond-mcli node /path/to/spond-mcli/dist/index.js -e SPOND_TOKEN="your-token-here"
 ```
 
+### As a Remote HTTP Server
+
+By default `spond-mcli mcp` runs over stdio, spawned as a local child process.
+Run `spond-mcli mcp --http [--port <n>]` instead to serve it over HTTP (default
+port 8080, or `$PORT`) so a remote deployment can serve MCP clients running on
+other machines.
+
+Stdio's file-based auth (`SPOND_TOKEN` / `~/.config/spond/token`) doesn't apply
+in HTTP mode — a remote server can't read your local token file, so each
+request must carry its own token in an `Authorization: Bearer <token>` header
+instead. Sequence:
+
+1. Run `spond-mcli login` locally to obtain the token (saved to
+   `~/.config/spond/token`).
+2. Put that token in the `Authorization: Bearer <token>` header field of your
+   MCP client's config for the remote endpoint, e.g.:
+   ```bash
+   claude mcp add --transport http spond https://your-deployment/mcp \
+     --header "Authorization: Bearer $(cat ~/.config/spond/token)"
+   ```
+
+A `Dockerfile` is included at the repo root for containerized deployment
+(builds the project and runs `node dist/cli.js mcp --http`); any host that can
+build and run a container from it works (Fly, Dokku, Railway, etc. — nothing
+in the image is platform-specific).
+
 ## Available Tools
 
 The MCP server provides comprehensive tools for accessing Spond data,
