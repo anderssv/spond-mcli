@@ -42,11 +42,21 @@ function validateMaxResults<T extends Record<string, unknown>>(params: T, name: 
   }
 }
 
+export interface ToolAnnotations {
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+}
+
 export interface ToolDefinition {
   name: string;
   description: string;
   inputSchema: any;
+  annotations?: ToolAnnotations;
 }
+
+const READ_ONLY: ToolAnnotations = { readOnlyHint: true };
+const IDEMPOTENT_MUTATION: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: true };
 
 export interface ResourceDefinition {
   uri: string;
@@ -312,6 +322,7 @@ export class SpondCore {
       {
         name: 'get_events',
         description: 'Get Spond events with optional filtering parameters. No date filtering is applied by default — results can include old/past events. For "what\'s coming up" queries, use get_upcoming_events instead, or set minEndTimestamp/order here explicitly.',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -372,6 +383,7 @@ export class SpondCore {
       {
         name: 'get_event_by_id',
         description: 'Get a specific Spond event by its ID',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -391,6 +403,7 @@ export class SpondCore {
       {
         name: 'get_upcoming_events',
         description: 'Get upcoming Spond events (events ending in the future)',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -412,6 +425,7 @@ export class SpondCore {
       {
         name: 'search_events',
         description: 'Search Spond events by keyword in title, description, or group name',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -433,6 +447,7 @@ export class SpondCore {
       {
         name: 'get_events_by_group',
         description: 'Get events from a specific group by group name',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -494,6 +509,7 @@ export class SpondCore {
       {
         name: 'get_posts',
         description: 'Get Spond posts/messages with optional filtering parameters',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -549,6 +565,7 @@ export class SpondCore {
       {
         name: 'get_post_by_id',
         description: 'Get a specific Spond post by its ID',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -563,6 +580,7 @@ export class SpondCore {
       {
         name: 'search_posts',
         description: 'Search Spond posts by keyword in title, text, or group name',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -584,6 +602,7 @@ export class SpondCore {
       {
         name: 'search_all',
         description: 'Search across everything at once — events, plain posts, polls, and payment requests — by keyword. Each result is tagged with kind ("event" or "post") so you can tell them apart.',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -609,6 +628,7 @@ export class SpondCore {
       {
         name: 'search_files',
         description: 'Search group files by filename, across all your groups by default (or one group with groupName). Spond has no unified search including files, so this is separate from search_all. Set content=true to also download and text-search inside PDF/DOCX file contents — this is much slower since every candidate file is downloaded and converted, so it is opt-in and requires pdftotext/docx2txt to be installed.',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -643,6 +663,7 @@ export class SpondCore {
       {
         name: 'get_posts_by_group',
         description: 'Get posts from a specific group by group name',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -664,6 +685,7 @@ export class SpondCore {
       {
         name: 'get_groups',
         description: 'Get all Spond groups that the user is a member of',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -677,6 +699,7 @@ export class SpondCore {
       {
         name: 'get_attachment',
         description: 'Fetch a Spond attachment using authenticated requests. Downloads it into a server-side workspace and returns a resourceId — pass that resourceId to a convert_*_to_text tool to read its contents.',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -695,6 +718,7 @@ export class SpondCore {
       {
         name: 'get_group_files',
         description: 'Get files from a specific Spond group',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -709,6 +733,7 @@ export class SpondCore {
       {
         name: 'get_group_file',
         description: 'Fetch a specific file from a Spond group. Downloads it into a server-side workspace and returns a resourceId — pass that resourceId to a convert_*_to_text tool to read its contents.',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -727,6 +752,7 @@ export class SpondCore {
       {
         name: 'convert_pdf_to_text',
         description: 'Convert a previously downloaded PDF (via get_attachment or get_group_file) to plain text using pdftotext. Returns a preview and a lineCount — use search_resource_text on the same resourceId to find specific content instead of reading the whole document.',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -741,6 +767,7 @@ export class SpondCore {
       {
         name: 'convert_docx_to_text',
         description: 'Convert a previously downloaded DOCX (via get_attachment or get_group_file) to plain text using docx2txt. Returns a preview and a lineCount — use search_resource_text on the same resourceId to find specific content instead of reading the whole document.',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -755,6 +782,7 @@ export class SpondCore {
       {
         name: 'convert_xlsx_to_text',
         description: 'Convert a previously downloaded XLSX/XLS spreadsheet (via get_attachment or get_group_file) to CSV text using ssconvert (part of the gnumeric package). Returns a preview and a lineCount — use search_resource_text on the same resourceId to find specific content instead of reading the whole document.',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -769,6 +797,7 @@ export class SpondCore {
       {
         name: 'search_resource_text',
         description: 'Search the converted text of a resource (from a convert_*_to_text tool) for a term, returning only matching lines instead of the whole document — use this instead of re-reading the full preview when looking for something specific.',
+        annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
@@ -794,6 +823,7 @@ export class SpondCore {
       {
         name: 'accept_event',
         description: 'Accept a Spond event for a specific member. IMPORTANT: Check the event\'s registrationStatus first — only events with status "open" can be responded to. Use "get event --include-members" to find the memberId from recipients.group.members[].',
+        annotations: IDEMPOTENT_MUTATION,
         inputSchema: {
           type: 'object',
           properties: {
@@ -812,6 +842,7 @@ export class SpondCore {
       {
         name: 'decline_event',
         description: 'Decline a Spond event for a specific member. IMPORTANT: Check the event\'s registrationStatus first — only events with status "open" can be responded to. Use "get event --include-members" to find the memberId from recipients.group.members[].',
+        annotations: IDEMPOTENT_MUTATION,
         inputSchema: {
           type: 'object',
           properties: {

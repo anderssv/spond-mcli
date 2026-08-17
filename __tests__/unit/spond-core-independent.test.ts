@@ -57,6 +57,28 @@ describe('SpondCore Independent Unit Tests', () => {
 
       expect(tool!.inputSchema.properties.maxResults.default).toBe(20);
     });
+
+    test('should mark every tool as read-only except accept_event/decline_event', () => {
+      const tools = core.getToolDefinitions();
+
+      for (const tool of tools) {
+        const isMutating = tool.name === 'accept_event' || tool.name === 'decline_event';
+        expect(tool.annotations?.readOnlyHint).toBe(!isMutating);
+      }
+    });
+
+    test('should mark accept_event and decline_event as idempotent, non-destructive mutations', () => {
+      const tools = core.getToolDefinitions();
+
+      for (const name of ['accept_event', 'decline_event']) {
+        const tool = tools.find(t => t.name === name);
+        expect(tool!.annotations).toEqual({
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true
+        });
+      }
+    });
   });
 
   describe('Resource Definitions', () => {
