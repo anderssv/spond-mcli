@@ -341,7 +341,7 @@ export class SpondCore {
             },
             query: {
               type: 'string',
-              description: 'Optional JMESPath expression to filter/project the result before returning it — use this instead of fetching everything when you only need a subset. Examples: "[?registrationStatus==\'open\'].heading" (titles of events open for registration), "[?groupName==\'U12 Boys\']" (events for one group), "[0:5].{heading: heading, startTime: startTime}" (compact projection of the first 5 events).'
+              description: 'Optional JMESPath expression to filter/project the result before returning it — use this instead of fetching everything when you only need a subset. Examples: "[?registrationStatus==\'open\'].heading" (titles of events open for registration), "[0:5].{heading: heading, startTime: startTime}" (compact projection of the first 5 events).'
             }
           }
         }
@@ -420,7 +420,7 @@ export class SpondCore {
             maxResults: {
               type: 'number',
               description: 'Maximum number of events to return',
-              default: 50,
+              default: 20,
               minimum: 1,
               maximum: 100
             },
@@ -459,6 +459,10 @@ export class SpondCore {
               type: 'string',
               description: 'Maximum end timestamp (ISO 8601 format)',
               format: 'date-time'
+            },
+            query: {
+              type: 'string',
+              description: 'Optional JMESPath expression to filter/project the result before returning it — strongly recommended over fetching everything when you only need a subset, since this tool can return many full event records. Examples: "[?registrationStatus==\'open\'].heading" (titles of events open for registration), "[0:5].{heading: heading, startTime: startTime}" (compact projection of the first 5 events).'
             }
           },
           required: ['groupName']
@@ -514,7 +518,7 @@ export class SpondCore {
             },
             query: {
               type: 'string',
-              description: 'Optional JMESPath expression to filter/project the result before returning it. Examples: "[?type==\'POLL\' && !poll.expired].{title: title, options: poll.options}" (open polls with their options), "[?unread].title" (titles of unread posts), "[?commentCount > `0`]" (posts with comments — note the backticks around numeric literals in JMESPath).'
+              description: 'Optional JMESPath expression to filter/project the result before returning it. Examples: "[?type==\'POLL\' && !poll.expired].{title: title, options: poll.options}" (open polls with their options), "[?unread].title" (titles of unread posts — note backticks around numeric literals, e.g. `0`).'
             }
           }
         }
@@ -567,13 +571,13 @@ export class SpondCore {
             maxResults: {
               type: 'number',
               description: 'Maximum number of combined results to return',
-              default: 50,
+              default: 20,
               minimum: 1,
               maximum: 100
             },
             query: {
               type: 'string',
-              description: 'Optional JMESPath expression to filter/project the combined event+post result before returning it. Examples: "[?kind==\'event\']" (only events from the combined results), "[?kind==\'post\' && type==\'PAYMENT\']" (only payment-request posts), "[].{kind: kind, name: heading || title}" (compact name across both kinds — note events use heading, posts use title).'
+              description: 'Optional JMESPath expression to filter/project the combined event+post result before returning it — strongly recommended over fetching everything when you only need a subset. Examples: "[?kind==\'event\']" (only events from the combined results), "[].{kind: kind, name: heading || title}" (compact name across both kinds — note events use heading, posts use title).'
             }
           },
           required: ['searchTerm']
@@ -607,7 +611,7 @@ export class SpondCore {
             },
             query: {
               type: 'string',
-              description: 'Optional JMESPath expression to filter/project the result before returning it. Examples: "[?matchType==\'content\']" (only results matched by file content, not filename), "[].{name: name, groupName: groupName}" (compact name/group projection), "[?groupName==\'U12 Boys\'].url" (URLs of matches in one group).'
+              description: 'Optional JMESPath expression to filter/project the result before returning it. Examples: "[?matchType==\'content\']" (only results matched by file content, not filename), "[].{name: name, groupName: groupName}" (compact name/group projection).'
             }
           },
           required: ['searchTerm']
@@ -642,7 +646,7 @@ export class SpondCore {
           properties: {
             query: {
               type: 'string',
-              description: 'Optional JMESPath expression to filter/project the result before returning it. Examples: "[?activity==\'Football\'].name" (names of football groups), "[?memberCount > `20`]" (groups with more than 20 members), "[].{name: name, contactPerson: contactPerson}" (compact name/contact projection).'
+              description: 'Optional JMESPath expression to filter/project the result before returning it. Examples: "[?activity==\'Football\'].name" (names of football groups), "[?memberCount > `20`]" (groups with more than 20 members — note backticks around numeric literals).'
             }
           }
         }
@@ -887,8 +891,8 @@ export class SpondCore {
         }
 
         case 'get_events_by_group': {
-          const { groupName, maxResults = 50, ...filterParams } = params as { 
-            groupName: string; 
+          const { groupName, maxResults = 20, query, ...filterParams } = params as {
+            groupName: string;
             maxResults?: number;
             includeComments?: boolean;
             includeHidden?: boolean;
@@ -897,10 +901,11 @@ export class SpondCore {
             order?: 'asc' | 'desc';
             minEndTimestamp?: string;
             maxEndTimestamp?: string;
+            query?: string;
           };
           requireParams(params, 'groupName');
           return {
-            data: await this.getEventsByGroup(groupName, maxResults, filterParams),
+            data: applyQuery(await this.getEventsByGroup(groupName, maxResults, filterParams), query),
             type: ToolCallResultType.Success
           };
         }
@@ -936,7 +941,7 @@ export class SpondCore {
         }
 
         case 'search_all': {
-          const { searchTerm, maxResults = 50, query } = params as {
+          const { searchTerm, maxResults = 20, query } = params as {
             searchTerm: string;
             maxResults?: number;
             query?: string;
@@ -1287,7 +1292,7 @@ export class SpondCore {
   }
 
   async convertXlsxToText(inputPath: string, outputPath: string): Promise<string> {
-    return convertFileToText('ssconvert', 'XLSX', inputPath, outputPath, 'Make sure ssconvert is installed (part of the gnumeric package).');
+    return convertFileToText('ssconvert', 'XLSX', inputPath, outputPath, 'Make sure ssconvert is installed (part of the gnumeric package).', ['--export-type=Gnumeric_stf:stf_csv']);
   }
 
   async searchFiles(

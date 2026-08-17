@@ -103,6 +103,31 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(Array.isArray(result.data)).toBe(true);
     });
     
+    test('should filter get_events_by_group results with a JMESPath query', async () => {
+      const result = await core.processToolCall('get_events_by_group', {
+        groupName: 'Gaming Center',
+        query: "[?contains(heading, 'Gaming')].heading"
+      });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data.length).toBeGreaterThan(0);
+      expect(result.data.every((heading: string) => heading.includes('Gaming'))).toBe(true);
+    });
+
+    test('should not leak the query param into the real getEventsByGroup API call', async () => {
+      const client = SpondClientFake.withMockData();
+      const spyCore = new SpondCore(client);
+      const getEventsByGroupSpy = jest.spyOn(client, 'getEventsByGroup');
+
+      await spyCore.processToolCall('get_events_by_group', { groupName: 'Gaming Center', query: '[?heading]' });
+
+      expect(getEventsByGroupSpy).toHaveBeenCalledWith(
+        'Gaming Center',
+        expect.any(Number),
+        expect.not.objectContaining({ query: expect.anything() })
+      );
+    });
+
     test('should provide tools that help users focus on upcoming activities', async () => {
       // Given: A user planning their future activities
       // When: Using the upcoming events tool
@@ -472,6 +497,25 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.type).toBe(ToolCallResultType.Success);
       expect(result.data.preview).toContain('Hello World');
       expect(result.data.lineCount).toBeGreaterThan(0);
+    });
+
+    test('should convert a real spreadsheet resource to CSV text, without relying on a file extension', async () => {
+      const fs = require('fs');
+      const os = require('os');
+      const path = require('path');
+      const { resolveResourcePath } = require('../../src/workspace-manager.js');
+
+      const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spond-convert-test-'));
+      const scopedCore = new SpondCore(SpondClientFake.withMockData(), workspaceDir);
+      const resourceId = 'real-xlsx-resource';
+      const rawPath = resolveResourcePath(workspaceDir, 'raw', resourceId);
+      fs.mkdirSync(path.dirname(rawPath), { recursive: true });
+      fs.writeFileSync(rawPath, 'name,age\nAlice,30\n');
+
+      const result = await scopedCore.processToolCall('convert_xlsx_to_text', { resourceId });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data.preview).toContain('Alice');
     });
   });
 

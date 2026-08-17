@@ -17,7 +17,7 @@ import { buildSpondClient } from './client-factory.js';
 // Kept in sync with package.json's "version" — __tests__/unit/server-version.test.ts
 // asserts they match, since ESM JSON-import syntax isn't portable across
 // tsc's build output and ts-jest's per-file transpile mode.
-export const SERVER_VERSION = '2.1.1';
+export const SERVER_VERSION = '2.2.0';
 
 export class SpondMcpServer {
   private server: Server;
@@ -110,7 +110,7 @@ export class SpondMcpServer {
         content: [
           {
             type: 'text' as const,
-            text: result.data === null ? 'Not found' : JSON.stringify(result.data, null, 2)
+            text: result.data === null ? 'Not found' : JSON.stringify(result.data)
           }
         ]
       };
@@ -120,7 +120,7 @@ export class SpondMcpServer {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify(result.data, null, 2)
+          text: JSON.stringify(result.data)
         }
       ]
     };
@@ -132,7 +132,7 @@ export class SpondMcpServer {
         {
           uri: result.uri,
           mimeType: 'application/json',
-          text: JSON.stringify(result.data, null, 2)
+          text: JSON.stringify(result.data)
         }
       ]
     };

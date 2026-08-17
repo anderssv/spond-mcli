@@ -3,7 +3,8 @@ export async function convertFileToText(
   fileType: string,
   inputPath: string,
   outputPath: string,
-  installHint: string
+  installHint: string,
+  extraArgs: string[] = []
 ): Promise<string> {
   const { spawn } = await import('child_process');
   const { promises: fs } = await import('fs');
@@ -15,7 +16,7 @@ export async function convertFileToText(
   }
 
   return new Promise((resolve, reject) => {
-    const process = spawn(command, [inputPath, outputPath]);
+    const process = spawn(command, [...extraArgs, inputPath, outputPath]);
 
     let errorOutput = '';
 

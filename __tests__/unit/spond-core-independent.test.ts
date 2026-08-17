@@ -43,6 +43,20 @@ describe('SpondCore Independent Unit Tests', () => {
       expect(getEventsTool!.inputSchema.type).toBe('object');
       expect(getEventsTool!.inputSchema.properties.max.default).toBe(20);
     });
+
+    test('should default get_events_by_group maxResults to 20 (lowered from 50 to reduce response size)', () => {
+      const tools = core.getToolDefinitions();
+      const tool = tools.find(t => t.name === 'get_events_by_group');
+
+      expect(tool!.inputSchema.properties.maxResults.default).toBe(20);
+    });
+
+    test('should default search_all maxResults to 20 (lowered from 50 to reduce response size)', () => {
+      const tools = core.getToolDefinitions();
+      const tool = tools.find(t => t.name === 'search_all');
+
+      expect(tool!.inputSchema.properties.maxResults.default).toBe(20);
+    });
   });
 
   describe('Resource Definitions', () => {
