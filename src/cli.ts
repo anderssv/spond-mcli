@@ -3,7 +3,7 @@
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { parseArgs, USAGE, CliCommand } from './cli-args.js';
+import { parseArgs, isHelpFlag, USAGE, CliCommand } from './cli-args.js';
 import { SpondCore, CoreError } from './spond-core.js';
 import { getTokenWithFileFallback } from './token-config.js';
 import { buildSpondClient } from './client-factory.js';
@@ -102,7 +102,14 @@ async function executeCommand(core: SpondCore, cmd: ApiCommand): Promise<{ data:
 }
 
 async function main(): Promise<void> {
-  const parsed = parseArgs(process.argv.slice(2));
+  const argv = process.argv.slice(2);
+
+  if (isHelpFlag(argv)) {
+    console.log(USAGE);
+    return;
+  }
+
+  const parsed = parseArgs(argv);
   if (!parsed) {
     console.error(USAGE);
     process.exit(1);
@@ -191,4 +198,7 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+main().catch((error) => {
+  console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+});

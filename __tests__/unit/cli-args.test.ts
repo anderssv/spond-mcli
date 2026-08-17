@@ -1,4 +1,4 @@
-import { parseArgs, CliCommand } from '../../src/cli-args.js';
+import { parseArgs, isHelpFlag, CliCommand } from '../../src/cli-args.js';
 
 describe('CLI argument parsing', () => {
   // Event commands
@@ -343,5 +343,44 @@ describe('CLI argument parsing', () => {
     const result = parseArgs([]);
 
     expect(result).toBeNull();
+  });
+
+  // --max validation
+  it('"search <term> --max abc" throws a clear error instead of silently returning empty results', () => {
+    expect(() => parseArgs(['search', 'dugnad', '--max', 'abc'])).toThrow('--max must be a positive whole number');
+  });
+
+  it('"search <term> --max 0" throws a clear error', () => {
+    expect(() => parseArgs(['search', 'dugnad', '--max', '0'])).toThrow('--max must be a positive whole number');
+  });
+
+  it('"search <term> --max -5" throws a clear error instead of silently reinterpreting as slice(-5)', () => {
+    expect(() => parseArgs(['search', 'dugnad', '--max', '-5'])).toThrow('--max must be a positive whole number');
+  });
+
+  it('"events --max abc" throws a clear error', () => {
+    expect(() => parseArgs(['events', '--max', 'abc'])).toThrow('--max must be a positive whole number');
+  });
+});
+
+describe('isHelpFlag', () => {
+  it('is true for --help', () => {
+    expect(isHelpFlag(['--help'])).toBe(true);
+  });
+
+  it('is true for -h', () => {
+    expect(isHelpFlag(['-h'])).toBe(true);
+  });
+
+  it('is true when --help appears alongside other args', () => {
+    expect(isHelpFlag(['events', '--help'])).toBe(true);
+  });
+
+  it('is false for a normal command', () => {
+    expect(isHelpFlag(['events', '--max', '10'])).toBe(false);
+  });
+
+  it('is false for no arguments', () => {
+    expect(isHelpFlag([])).toBe(false);
   });
 });

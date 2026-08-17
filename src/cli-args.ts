@@ -138,6 +138,18 @@ Accept/Decline an event:
 
 export { USAGE };
 
+export function isHelpFlag(argv: string[]): boolean {
+  return argv.includes('--help') || argv.includes('-h');
+}
+
+function parsePositiveInt(raw: string, flagName: string): number {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${flagName} must be a positive whole number, got: ${raw}`);
+  }
+  return value;
+}
+
 export function parseArgs(argv: string[]): CliCommand | null {
   let args;
   try {
@@ -148,7 +160,7 @@ export function parseArgs(argv: string[]): CliCommand | null {
 
   if (args['events']) {
     const params: SpondEventsQueryParams = {};
-    if (args['--max']) params.max = Number(args['--max']);
+    if (args['--max']) params.max = parsePositiveInt(args['--max'] as string, '--max');
     if (args['--include-comments']) params.includeComments = true;
     if (args['--include-hidden']) params.includeHidden = true;
     if (args['--order']) params.order = args['--order'] as 'asc' | 'desc';
@@ -169,7 +181,7 @@ export function parseArgs(argv: string[]): CliCommand | null {
   if (args['upcoming']) {
     return {
       command: 'getUpcomingEvents',
-      ...(args['--max'] ? { maxResults: Number(args['--max']) } : {})
+      ...(args['--max'] ? { maxResults: parsePositiveInt(args['--max'] as string, '--max') } : {})
     };
   }
 
@@ -179,7 +191,7 @@ export function parseArgs(argv: string[]): CliCommand | null {
       searchTerm: args['<searchTerm>'] as string,
       groupName: (args['--group'] as string | null) ?? undefined,
       content: !!args['--content'],
-      ...(args['--max'] ? { maxResults: Number(args['--max']) } : {})
+      ...(args['--max'] ? { maxResults: parsePositiveInt(args['--max'] as string, '--max') } : {})
     };
   }
 
@@ -187,7 +199,7 @@ export function parseArgs(argv: string[]): CliCommand | null {
     return {
       command: 'searchAll',
       searchTerm: args['<searchTerm>'] as string,
-      ...(args['--max'] ? { maxResults: Number(args['--max']) } : {})
+      ...(args['--max'] ? { maxResults: parsePositiveInt(args['--max'] as string, '--max') } : {})
     };
   }
 
@@ -195,7 +207,7 @@ export function parseArgs(argv: string[]): CliCommand | null {
     return {
       command: 'searchEvents',
       searchTerm: args['<searchTerm>'] as string,
-      ...(args['--max'] ? { maxResults: Number(args['--max']) } : {})
+      ...(args['--max'] ? { maxResults: parsePositiveInt(args['--max'] as string, '--max') } : {})
     };
   }
 
@@ -203,13 +215,13 @@ export function parseArgs(argv: string[]): CliCommand | null {
     return {
       command: 'getEventsByGroup',
       groupName: args['<groupName>'] as string,
-      ...(args['--max'] ? { maxResults: Number(args['--max']) } : {})
+      ...(args['--max'] ? { maxResults: parsePositiveInt(args['--max'] as string, '--max') } : {})
     };
   }
 
   if (args['posts']) {
     const params: SpondPostsQueryParams = {};
-    if (args['--max']) params.max = Number(args['--max']);
+    if (args['--max']) params.max = parsePositiveInt(args['--max'] as string, '--max');
     if (args['--type']) params.type = args['--type'] as 'PLAIN' | 'POLL' | 'PAYMENT';
     if (args['--group-id']) params.groupId = args['--group-id'] as string;
     if (args['--include-read-status']) params.includeReadStatus = true;
@@ -224,7 +236,7 @@ export function parseArgs(argv: string[]): CliCommand | null {
     return {
       command: 'searchPosts',
       searchTerm: args['<searchTerm>'] as string,
-      ...(args['--max'] ? { maxResults: Number(args['--max']) } : {})
+      ...(args['--max'] ? { maxResults: parsePositiveInt(args['--max'] as string, '--max') } : {})
     };
   }
 
@@ -232,7 +244,7 @@ export function parseArgs(argv: string[]): CliCommand | null {
     return {
       command: 'getPostsByGroup',
       groupName: args['<groupName>'] as string,
-      ...(args['--max'] ? { maxResults: Number(args['--max']) } : {})
+      ...(args['--max'] ? { maxResults: parsePositiveInt(args['--max'] as string, '--max') } : {})
     };
   }
 

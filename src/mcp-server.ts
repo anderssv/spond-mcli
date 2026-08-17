@@ -17,7 +17,7 @@ import { buildSpondClient } from './client-factory.js';
 // Kept in sync with package.json's "version" — __tests__/unit/server-version.test.ts
 // asserts they match, since ESM JSON-import syntax isn't portable across
 // tsc's build output and ts-jest's per-file transpile mode.
-export const SERVER_VERSION = '2.2.1';
+export const SERVER_VERSION = '2.2.2';
 
 export class SpondMcpServer {
   private server: Server;
