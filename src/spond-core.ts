@@ -2,30 +2,14 @@ import { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, S
 import { ISpondClient } from './spond-client-interface.js';
 import { convertFileToText } from './file-converter.js';
 import { createProcessWorkspaceDirSync, generateResourceId, resolveResourcePath } from './workspace-manager.js';
+import { applyQuery } from './jmespath-query.js';
 import { promises as fs } from 'fs';
 import { dirname } from 'path';
 
 const PREVIEW_MAX_CHARS = 2000;
 
-// Custom error types to avoid MCP SDK dependency
-export enum CoreErrorCode {
-  InvalidParams = -32602,
-  MethodNotFound = -32601,
-  InternalError = -32603
-}
-
-// Result type enum for tool calls
-export enum ToolCallResultType {
-  Success = 'success',
-  NotFound = 'not_found'
-}
-
-export class CoreError extends Error {
-  constructor(public code: CoreErrorCode, message: string) {
-    super(message);
-    this.name = 'CoreError';
-  }
-}
+export { CoreErrorCode, ToolCallResultType, CoreError } from './errors.js';
+import { CoreErrorCode, ToolCallResultType, CoreError } from './errors.js';
 
 function requireParams<T extends Record<string, unknown>>(params: T, ...names: (keyof T & string)[]): void {
   for (const name of names) {
@@ -354,6 +338,10 @@ export class SpondCore {
             groupId: {
               type: 'string',
               description: 'Filter events by specific group ID'
+            },
+            query: {
+              type: 'string',
+              description: 'Optional JMESPath expression to filter/project the result before returning it — use this instead of fetching everything when you only need a subset. Examples: "[?registrationStatus==\'open\'].heading" (titles of events open for registration), "[?groupName==\'U12 Boys\']" (events for one group), "[0:5].{heading: heading, startTime: startTime}" (compact projection of the first 5 events).'
             }
           }
         }
@@ -523,6 +511,10 @@ export class SpondCore {
               type: 'string',
               description: 'Only include posts created before this timestamp (ISO 8601 format)',
               format: 'date-time'
+            },
+            query: {
+              type: 'string',
+              description: 'Optional JMESPath expression to filter/project the result before returning it. Examples: "[?type==\'POLL\' && !poll.expired].{title: title, options: poll.options}" (open polls with their options), "[?unread].title" (titles of unread posts), "[?commentCount > `0`]" (posts with comments — note the backticks around numeric literals in JMESPath).'
             }
           }
         }
@@ -578,6 +570,10 @@ export class SpondCore {
               default: 50,
               minimum: 1,
               maximum: 100
+            },
+            query: {
+              type: 'string',
+              description: 'Optional JMESPath expression to filter/project the combined event+post result before returning it. Examples: "[?kind==\'event\']" (only events from the combined results), "[?kind==\'post\' && type==\'PAYMENT\']" (only payment-request posts), "[].{kind: kind, name: heading || title}" (compact name across both kinds — note events use heading, posts use title).'
             }
           },
           required: ['searchTerm']
@@ -608,6 +604,10 @@ export class SpondCore {
               default: 50,
               minimum: 1,
               maximum: 100
+            },
+            query: {
+              type: 'string',
+              description: 'Optional JMESPath expression to filter/project the result before returning it. Examples: "[?matchType==\'content\']" (only results matched by file content, not filename), "[].{name: name, groupName: groupName}" (compact name/group projection), "[?groupName==\'U12 Boys\'].url" (URLs of matches in one group).'
             }
           },
           required: ['searchTerm']
@@ -639,8 +639,12 @@ export class SpondCore {
         description: 'Get all Spond groups that the user is a member of',
         inputSchema: {
           type: 'object',
-          properties: {},
-          additionalProperties: false
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Optional JMESPath expression to filter/project the result before returning it. Examples: "[?activity==\'Football\'].name" (names of football groups), "[?memberCount > `20`]" (groups with more than 20 members), "[].{name: name, contactPerson: contactPerson}" (compact name/contact projection).'
+            }
+          }
         }
       },
       {
@@ -838,9 +842,9 @@ export class SpondCore {
     try {
       switch (toolName) {
         case 'get_events': {
-          const typedParams = params as SpondEventsQueryParams;
+          const { query, ...eventParams } = params as SpondEventsQueryParams & { query?: string };
           return {
-            data: await this.getEvents(typedParams),
+            data: applyQuery(await this.getEvents(eventParams), query),
             type: ToolCallResultType.Success
           };
         }
@@ -902,9 +906,9 @@ export class SpondCore {
         }
 
         case 'get_posts': {
-          const typedParams = params as SpondPostsQueryParams;
+          const { query, ...postParams } = params as SpondPostsQueryParams & { query?: string };
           return {
-            data: await this.getPosts(typedParams),
+            data: applyQuery(await this.getPosts(postParams), query),
             type: ToolCallResultType.Success
           };
         }
@@ -932,27 +936,29 @@ export class SpondCore {
         }
 
         case 'search_all': {
-          const { searchTerm, maxResults = 50 } = params as {
+          const { searchTerm, maxResults = 50, query } = params as {
             searchTerm: string;
             maxResults?: number;
+            query?: string;
           };
           requireParams(params, 'searchTerm');
           return {
-            data: await this.searchAll(searchTerm, maxResults),
+            data: applyQuery(await this.searchAll(searchTerm, maxResults), query),
             type: ToolCallResultType.Success
           };
         }
 
         case 'search_files': {
-          const { searchTerm, groupName, content = false, maxResults = 50 } = params as {
+          const { searchTerm, groupName, content = false, maxResults = 50, query } = params as {
             searchTerm: string;
             groupName?: string;
             content?: boolean;
             maxResults?: number;
+            query?: string;
           };
           requireParams(params, 'searchTerm');
           return {
-            data: await this.searchFiles(searchTerm, { groupName, content }, maxResults),
+            data: applyQuery(await this.searchFiles(searchTerm, { groupName, content }, maxResults), query),
             type: ToolCallResultType.Success
           };
         }
@@ -970,8 +976,9 @@ export class SpondCore {
         }
 
         case 'get_groups': {
+          const { query } = params as { query?: string };
           return {
-            data: await this.getGroups(),
+            data: applyQuery(await this.getGroups(), query),
             type: ToolCallResultType.Success
           };
         }

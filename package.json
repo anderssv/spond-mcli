@@ -1,6 +1,6 @@
 {
   "name": "spond-mcli",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "MCP server and CLI for Spond API integration",
   "main": "dist/index.js",
   "bin": {
@@ -45,6 +45,7 @@
     "@modelcontextprotocol/sdk": "^1.27.1",
     "docopt": "^0.6.2",
     "dotenv": "^17.3.1",
+    "jmespath": "^0.16.0",
     "node-fetch": "^3.3.2",
     "playwright": "^1.58.2"
   },
@@ -52,6 +53,7 @@
     "@types/docopt": "^0.6.37",
     "@types/dotenv": "^6.1.1",
     "@types/jest": "^30.0.0",
+    "@types/jmespath": "^0.15.2",
     "@types/node": "^25.4.0",
     "@typescript-eslint/eslint-plugin": "^8.57.0",
     "@typescript-eslint/parser": "^8.57.0",

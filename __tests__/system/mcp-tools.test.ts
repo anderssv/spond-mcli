@@ -62,13 +62,33 @@ describe('MCP Tool Capabilities for Users', () => {
       // Given: A user wanting to see their events
       // When: Using the get_events tool
       const result = await core.processToolCall('get_events', {});
-      
+
       // Then: Should successfully retrieve event information
       expect(result).toBeDefined();
       expect(result.type).toBe(ToolCallResultType.Success);
       expect(Array.isArray(result.data)).toBe(true);
     });
-    
+
+    test('should filter get_events results with a JMESPath query', async () => {
+      const result = await core.processToolCall('get_events', {
+        query: "[?contains(heading, 'Gaming')]"
+      });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data.length).toBeGreaterThan(0);
+      expect(result.data.every((event: any) => event.heading.includes('Gaming'))).toBe(true);
+    });
+
+    test('should not leak the query param into the real getEvents API call', async () => {
+      const client = SpondClientFake.withMockData();
+      const spyCore = new SpondCore(client);
+      const getEventsSpy = jest.spyOn(client, 'getEvents');
+
+      await spyCore.processToolCall('get_events', { groupId: 'GROUP_GAMING_CENTER', query: '[?heading]' });
+
+      expect(getEventsSpy).toHaveBeenCalledWith(expect.not.objectContaining({ query: expect.anything() }));
+    });
+
     test('should provide tools that help users search for specific activities', async () => {
       // Given: A user looking for gaming activities
       // When: Using the search functionality
@@ -204,6 +224,26 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.data.id).toBe('POST_001');
     });
 
+    test('should filter get_posts results with a JMESPath query', async () => {
+      const result = await core.processToolCall('get_posts', {
+        query: "[?contains(title, 'Gaming')].title"
+      });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data.length).toBeGreaterThan(0);
+      expect(result.data.every((title: string) => title.includes('Gaming'))).toBe(true);
+    });
+
+    test('should not leak the query param into the real getPosts API call', async () => {
+      const client = SpondClientFake.withMockData();
+      const spyCore = new SpondCore(client);
+      const getPostsSpy = jest.spyOn(client, 'getPosts');
+
+      await spyCore.processToolCall('get_posts', { groupId: 'GROUP_GAMING_CENTER', query: '[?title]' });
+
+      expect(getPostsSpy).toHaveBeenCalledWith(expect.not.objectContaining({ query: expect.anything() }));
+    });
+
     test('should return not-found for non-existent post', async () => {
       const result = await core.processToolCall('get_post_by_id', { postId: 'NON_EXISTENT_POST' });
 
@@ -245,6 +285,18 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.data.every((item: any) => item.kind === 'event' || item.kind === 'post')).toBe(true);
     });
 
+    test('should filter search_all results with a JMESPath query', async () => {
+      const result = await core.processToolCall('search_all', {
+        searchTerm: 'Gaming',
+        maxResults: 10,
+        query: "[?kind=='event']"
+      });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data.length).toBeGreaterThan(0);
+      expect(result.data.every((item: any) => item.kind === 'event')).toBe(true);
+    });
+
     test('should require searchTerm for search_all', async () => {
       await expect(
         core.processToolCall('search_all', {})
@@ -268,6 +320,17 @@ describe('MCP Tool Capabilities for Users', () => {
         core.processToolCall('get_posts_by_group', {})
       ).rejects.toThrow('groupName is required');
     });
+
+    test('should filter search_files results with a JMESPath query', async () => {
+      const result = await core.processToolCall('search_files', {
+        searchTerm: 'meeting',
+        query: "[?matchType=='filename'].name"
+      });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data.length).toBeGreaterThan(0);
+      expect(result.data.every((name: string) => name === 'meeting-notes.pdf')).toBe(true);
+    });
   });
 
   describe('Group Tools', () => {
@@ -280,6 +343,28 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.data[0]).toHaveProperty('id');
       expect(result.data[0]).toHaveProperty('name');
       expect(result.data[0]).toHaveProperty('memberCount');
+    });
+
+    test('should filter get_groups results with a JMESPath query', async () => {
+      const result = await core.processToolCall('get_groups', {
+        query: "[?activity=='esports'].name"
+      });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data).toEqual(['Gaming Center Junior']);
+    });
+
+    test('should reject a malformed JMESPath query with an InvalidParams CoreError', async () => {
+      await expect(
+        core.processToolCall('get_groups', { query: '[invalid(' })
+      ).rejects.toThrow(CoreError);
+
+      try {
+        await core.processToolCall('get_groups', { query: '[invalid(' });
+        fail('expected processToolCall to throw');
+      } catch (error) {
+        expect((error as CoreError).code).toBe(CoreErrorCode.InvalidParams);
+      }
     });
 
     test('should retrieve group files', async () => {
