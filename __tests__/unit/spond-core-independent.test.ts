@@ -39,7 +39,7 @@ describe('SpondCore Independent Unit Tests', () => {
       const getEventsTool = tools.find(t => t.name === 'get_events');
       
       expect(getEventsTool).toBeDefined();
-      expect(getEventsTool!.description).toBe('Get Spond events with optional filtering parameters');
+      expect(getEventsTool!.description).toContain('Get Spond events with optional filtering parameters');
       expect(getEventsTool!.inputSchema.type).toBe('object');
       expect(getEventsTool!.inputSchema.properties.max.default).toBe(20);
     });

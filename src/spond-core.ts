@@ -288,7 +288,7 @@ export class SpondCore {
     return [
       {
         name: 'get_events',
-        description: 'Get Spond events with optional filtering parameters',
+        description: 'Get Spond events with optional filtering parameters. No date filtering is applied by default — results can include old/past events. For "what\'s coming up" queries, use get_upcoming_events instead, or set minEndTimestamp/order here explicitly.',
         inputSchema: {
           type: 'object',
           properties: {
