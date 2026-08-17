@@ -22,7 +22,7 @@ describe('SpondCore Independent Unit Tests', () => {
     test('should return all expected tool definitions', () => {
       const tools = core.getToolDefinitions();
       
-      expect(tools).toHaveLength(20);
+      expect(tools).toHaveLength(21);
       expect(tools.map(t => t.name)).toContain('get_events');
       expect(tools.map(t => t.name)).toContain('get_upcoming_events');
       expect(tools.map(t => t.name)).toContain('search_events');

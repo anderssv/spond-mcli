@@ -4,6 +4,10 @@ import { SpondMcpServer } from './mcp-server.js';
 import { extractBearerToken } from './http-auth.js';
 import { buildSpondClient } from './client-factory.js';
 import { validateSpondToken } from './token-config.js';
+import { getOrCreateTokenWorkspaceDir, sweepStaleWorkspaces, getWorkspaceRoot, WORKSPACE_TTL_ENV } from './workspace-manager.js';
+
+const SWEEP_INTERVAL_MS = 1000 * 60 * 60;
+const DEFAULT_TTL_MS = 1000 * 60 * 60 * 24;
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { 'content-type': 'application/json' });
@@ -26,7 +30,8 @@ async function handleMcpRequest(req: IncomingMessage, res: ServerResponse): Prom
   }
 
   const client = buildSpondClient(token);
-  const mcpServer = new SpondMcpServer(client);
+  const workspaceDir = await getOrCreateTokenWorkspaceDir(token);
+  const mcpServer = new SpondMcpServer(client, workspaceDir);
   // Stateless mode: each request gets its own transport/server pair, scoped
   // to the token in that request's Authorization header. No session state is
   // kept between requests.
@@ -69,6 +74,16 @@ function createRequestListener() {
 export function startHttpServer(port: number): Promise<Server> {
   return new Promise((resolve) => {
     const server = createServer(createRequestListener());
+
+    const ttlMs = Number(process.env[WORKSPACE_TTL_ENV]) || DEFAULT_TTL_MS;
+    const sweepInterval = setInterval(() => {
+      sweepStaleWorkspaces(getWorkspaceRoot(), ttlMs).catch(error => {
+        console.error('Workspace sweep failed:', error);
+      });
+    }, SWEEP_INTERVAL_MS);
+    sweepInterval.unref();
+    server.on('close', () => clearInterval(sweepInterval));
+
     server.listen(port, () => {
       const address = server.address();
       const boundPort = address && typeof address !== 'string' ? address.port : port;

@@ -1,6 +1,11 @@
 import { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup, AttendanceStatus, calculateRegistrationStatus, resolveMyMembers, matchesSearchTerm, matchesFilename, isContentSearchable, FileResource, FileSearchResult } from './domain-types.js';
 import { ISpondClient } from './spond-client-interface.js';
 import { convertFileToText } from './file-converter.js';
+import { createProcessWorkspaceDirSync, generateResourceId, resolveResourcePath } from './workspace-manager.js';
+import { promises as fs } from 'fs';
+import { dirname } from 'path';
+
+const PREVIEW_MAX_CHARS = 2000;
 
 // Custom error types to avoid MCP SDK dependency
 export enum CoreErrorCode {
@@ -56,9 +61,18 @@ export type ResourceReadResult = {
 
 export class SpondCore {
   private spondClient: ISpondClient;
+  private workspaceDir?: string;
 
-  constructor(spondClient: ISpondClient) {
+  constructor(spondClient: ISpondClient, workspaceDir?: string) {
     this.spondClient = spondClient;
+    this.workspaceDir = workspaceDir;
+  }
+
+  private getWorkspaceDir(): string {
+    if (!this.workspaceDir) {
+      this.workspaceDir = createProcessWorkspaceDirSync();
+    }
+    return this.workspaceDir;
   }
 
   async getGroups() {
@@ -183,6 +197,87 @@ export class SpondCore {
 
   async getGroupFile(fileUrl: string, groupId: string, filePath: string) {
     return await this.spondClient.fetchGroupFileToFile(fileUrl, filePath, groupId);
+  }
+
+  async getAttachmentAsResource(url: string, groupId: string): Promise<{ resourceId: string; sizeBytes: number; contentType: string }> {
+    const resourceId = generateResourceId(url);
+    const rawPath = resolveResourcePath(this.getWorkspaceDir(), 'raw', resourceId);
+    const message = await this.getAttachment(url, groupId, rawPath);
+    return { resourceId, ...await this.statResource(rawPath, message) };
+  }
+
+  async getGroupFileAsResource(fileUrl: string, groupId: string): Promise<{ resourceId: string; sizeBytes: number; contentType: string }> {
+    const resourceId = generateResourceId(fileUrl);
+    const rawPath = resolveResourcePath(this.getWorkspaceDir(), 'raw', resourceId);
+    const message = await this.getGroupFile(fileUrl, groupId, rawPath);
+    return { resourceId, ...await this.statResource(rawPath, message) };
+  }
+
+  private async statResource(rawPath: string, downloadMessage: string): Promise<{ sizeBytes: number; contentType: string }> {
+    const stat = await fs.stat(rawPath);
+    const contentTypeMatch = downloadMessage.match(/Content type: (.+)$/m);
+    return { sizeBytes: stat.size, contentType: contentTypeMatch?.[1] ?? 'unknown' };
+  }
+
+  async convertPdfToTextResource(resourceId: string) {
+    return this.convertResourceToText(resourceId, (inputPath, outputPath) => this.convertPdfToText(inputPath, outputPath));
+  }
+
+  async convertDocxToTextResource(resourceId: string) {
+    return this.convertResourceToText(resourceId, (inputPath, outputPath) => this.convertDocxToText(inputPath, outputPath));
+  }
+
+  async convertXlsxToTextResource(resourceId: string) {
+    return this.convertResourceToText(resourceId, (inputPath, outputPath) => this.convertXlsxToText(inputPath, outputPath));
+  }
+
+  private async convertResourceToText(
+    resourceId: string,
+    convert: (inputPath: string, outputPath: string) => Promise<string>
+  ): Promise<{ resourceId: string; sizeBytes: number; lineCount: number; preview: string }> {
+    const rawPath = resolveResourcePath(this.getWorkspaceDir(), 'raw', resourceId);
+    const textPath = resolveResourcePath(this.getWorkspaceDir(), 'text', resourceId);
+
+    try {
+      await fs.access(rawPath);
+    } catch {
+      throw new CoreError(CoreErrorCode.InvalidParams, `Unknown resourceId: ${resourceId}. Call get_attachment or get_group_file first.`);
+    }
+
+    await fs.mkdir(dirname(textPath), { recursive: true });
+    await convert(rawPath, textPath);
+    const text = await fs.readFile(textPath, 'utf-8');
+    const lineCount = text.length === 0 ? 0 : text.split('\n').length;
+
+    return {
+      resourceId,
+      sizeBytes: Buffer.byteLength(text, 'utf-8'),
+      lineCount,
+      preview: text.slice(0, PREVIEW_MAX_CHARS)
+    };
+  }
+
+  async searchResourceText(resourceId: string, searchTerm: string, maxMatches: number = 50): Promise<{ matches: { lineNumber: number; line: string }[]; totalMatches: number; truncated: boolean }> {
+    const textPath = resolveResourcePath(this.getWorkspaceDir(), 'text', resourceId);
+
+    let text: string;
+    try {
+      text = await fs.readFile(textPath, 'utf-8');
+    } catch {
+      throw new CoreError(CoreErrorCode.InvalidParams, `Unknown resourceId: ${resourceId}. Call a convert_*_to_text tool on this resource first.`);
+    }
+
+    const lowerTerm = searchTerm.toLowerCase();
+    const allMatches = text
+      .split('\n')
+      .map((line, index) => ({ lineNumber: index + 1, line }))
+      .filter(({ line }) => line.toLowerCase().includes(lowerTerm));
+
+    return {
+      matches: allMatches.slice(0, maxMatches),
+      totalMatches: allMatches.length,
+      truncated: allMatches.length > maxMatches
+    };
   }
 
   async acceptEvent(eventId: string, memberId: string) {
@@ -550,7 +645,7 @@ export class SpondCore {
       },
       {
         name: 'get_attachment',
-        description: 'Fetch and save a Spond attachment to a specified file path using authenticated requests',
+        description: 'Fetch a Spond attachment using authenticated requests. Downloads it into a server-side workspace and returns a resourceId — pass that resourceId to a convert_*_to_text tool to read its contents.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -561,13 +656,9 @@ export class SpondCore {
             groupId: {
               type: 'string',
               description: 'The Spond group ID that posted this attachment (required for authentication)'
-            },
-            filePath: {
-              type: 'string',
-              description: 'Full file path (including filename) where to save the attachment. Usually a temporary storage.'
             }
           },
-          required: ['url', 'groupId', 'filePath']
+          required: ['url', 'groupId']
         }
       },
       {
@@ -586,7 +677,7 @@ export class SpondCore {
       },
       {
         name: 'get_group_file',
-        description: 'Fetch and save a specific file from a Spond group to a local file path',
+        description: 'Fetch a specific file from a Spond group. Downloads it into a server-side workspace and returns a resourceId — pass that resourceId to a convert_*_to_text tool to read its contents.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -597,67 +688,76 @@ export class SpondCore {
             groupId: {
               type: 'string',
               description: 'The Spond group ID that contains this file (required for authentication)'
-            },
-            filePath: {
-              type: 'string',
-              description: 'Full file path (including filename) where to save the file. Usually a temporary storage.'
             }
           },
-          required: ['fileUrl', 'groupId', 'filePath']
+          required: ['fileUrl', 'groupId']
         }
       },
       {
         name: 'convert_pdf_to_text',
-        description: 'Convert a PDF file to plain text using pdftotext',
+        description: 'Convert a previously downloaded PDF (via get_attachment or get_group_file) to plain text using pdftotext. Returns a preview and a lineCount — use search_resource_text on the same resourceId to find specific content instead of reading the whole document.',
         inputSchema: {
           type: 'object',
           properties: {
-            inputPath: {
+            resourceId: {
               type: 'string',
-              description: 'Full file path to the input PDF file'
-            },
-            outputPath: {
-              type: 'string',
-              description: 'Full file path where to save the converted text file'
+              description: 'The resourceId returned by get_attachment or get_group_file'
             }
           },
-          required: ['inputPath', 'outputPath']
+          required: ['resourceId']
         }
       },
       {
         name: 'convert_docx_to_text',
-        description: 'Convert a DOCX file to plain text using docx2txt',
+        description: 'Convert a previously downloaded DOCX (via get_attachment or get_group_file) to plain text using docx2txt. Returns a preview and a lineCount — use search_resource_text on the same resourceId to find specific content instead of reading the whole document.',
         inputSchema: {
           type: 'object',
           properties: {
-            inputPath: {
+            resourceId: {
               type: 'string',
-              description: 'Full file path to the input DOCX file'
-            },
-            outputPath: {
-              type: 'string',
-              description: 'Full file path where to save the converted text file'
+              description: 'The resourceId returned by get_attachment or get_group_file'
             }
           },
-          required: ['inputPath', 'outputPath']
+          required: ['resourceId']
         }
       },
       {
         name: 'convert_xlsx_to_text',
-        description: 'Convert an XLSX (or legacy XLS) spreadsheet to CSV text using ssconvert (part of the gnumeric package)',
+        description: 'Convert a previously downloaded XLSX/XLS spreadsheet (via get_attachment or get_group_file) to CSV text using ssconvert (part of the gnumeric package). Returns a preview and a lineCount — use search_resource_text on the same resourceId to find specific content instead of reading the whole document.',
         inputSchema: {
           type: 'object',
           properties: {
-            inputPath: {
+            resourceId: {
               type: 'string',
-              description: 'Full file path to the input XLSX file'
-            },
-            outputPath: {
-              type: 'string',
-              description: 'Full file path where to save the converted CSV file'
+              description: 'The resourceId returned by get_attachment or get_group_file'
             }
           },
-          required: ['inputPath', 'outputPath']
+          required: ['resourceId']
+        }
+      },
+      {
+        name: 'search_resource_text',
+        description: 'Search the converted text of a resource (from a convert_*_to_text tool) for a term, returning only matching lines instead of the whole document — use this instead of re-reading the full preview when looking for something specific.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            resourceId: {
+              type: 'string',
+              description: 'The resourceId returned by a convert_*_to_text tool'
+            },
+            searchTerm: {
+              type: 'string',
+              description: 'Term to search for (case-insensitive substring match)'
+            },
+            maxMatches: {
+              type: 'number',
+              description: 'Maximum number of matching lines to return',
+              default: 50,
+              minimum: 1,
+              maximum: 500
+            }
+          },
+          required: ['resourceId', 'searchTerm']
         }
       },
       {
@@ -877,14 +977,13 @@ export class SpondCore {
         }
 
         case 'get_attachment': {
-          const { url, groupId, filePath } = params as { 
-            url: string; 
+          const { url, groupId } = params as {
+            url: string;
             groupId: string;
-            filePath: string;
           };
-          requireParams(params, 'url', 'groupId', 'filePath');
+          requireParams(params, 'url', 'groupId');
           return {
-            data: { message: await this.getAttachment(url, groupId, filePath) },
+            data: await this.getAttachmentAsResource(url, groupId),
             type: ToolCallResultType.Success
           };
         }
@@ -901,56 +1000,53 @@ export class SpondCore {
         }
 
         case 'get_group_file': {
-          const { fileUrl, groupId, filePath } = params as { 
-            fileUrl: string; 
+          const { fileUrl, groupId } = params as {
+            fileUrl: string;
             groupId: string;
-            filePath: string;
           };
-          requireParams(params, 'fileUrl', 'groupId', 'filePath');
+          requireParams(params, 'fileUrl', 'groupId');
           return {
-            data: { message: await this.getGroupFile(fileUrl, groupId, filePath) },
+            data: await this.getGroupFileAsResource(fileUrl, groupId),
             type: ToolCallResultType.Success
           };
         }
 
         case 'convert_pdf_to_text': {
-          const { inputPath, outputPath } = params as { 
-            inputPath: string; 
-            outputPath: string;
-          };
-          requireParams(params, 'inputPath', 'outputPath');
-          
-          const result = await this.convertPdfToText(inputPath, outputPath);
+          const { resourceId } = params as { resourceId: string };
+          requireParams(params, 'resourceId');
           return {
-            data: { message: result },
+            data: await this.convertPdfToTextResource(resourceId),
             type: ToolCallResultType.Success
           };
         }
 
         case 'convert_docx_to_text': {
-          const { inputPath, outputPath } = params as {
-            inputPath: string;
-            outputPath: string;
-          };
-          requireParams(params, 'inputPath', 'outputPath');
-
-          const result = await this.convertDocxToText(inputPath, outputPath);
+          const { resourceId } = params as { resourceId: string };
+          requireParams(params, 'resourceId');
           return {
-            data: { message: result },
+            data: await this.convertDocxToTextResource(resourceId),
             type: ToolCallResultType.Success
           };
         }
 
         case 'convert_xlsx_to_text': {
-          const { inputPath, outputPath } = params as {
-            inputPath: string;
-            outputPath: string;
-          };
-          requireParams(params, 'inputPath', 'outputPath');
-
-          const result = await this.convertXlsxToText(inputPath, outputPath);
+          const { resourceId } = params as { resourceId: string };
+          requireParams(params, 'resourceId');
           return {
-            data: { message: result },
+            data: await this.convertXlsxToTextResource(resourceId),
+            type: ToolCallResultType.Success
+          };
+        }
+
+        case 'search_resource_text': {
+          const { resourceId, searchTerm, maxMatches = 50 } = params as {
+            resourceId: string;
+            searchTerm: string;
+            maxMatches?: number;
+          };
+          requireParams(params, 'resourceId', 'searchTerm');
+          return {
+            data: await this.searchResourceText(resourceId, searchTerm, maxMatches),
             type: ToolCallResultType.Success
           };
         }

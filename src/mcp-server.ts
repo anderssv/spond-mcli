@@ -14,15 +14,20 @@ import { getTokenWithFileFallback } from './token-config.js';
 import { ISpondClient } from './spond-client-interface.js';
 import { buildSpondClient } from './client-factory.js';
 
+// Kept in sync with package.json's "version" — __tests__/unit/server-version.test.ts
+// asserts they match, since ESM JSON-import syntax isn't portable across
+// tsc's build output and ts-jest's per-file transpile mode.
+export const SERVER_VERSION = '2.0.0';
+
 export class SpondMcpServer {
   private server: Server;
   private core: SpondCore;
 
-  constructor(spondClient?: ISpondClient) {
+  constructor(spondClient?: ISpondClient, workspaceDir?: string) {
     this.server = new Server(
       {
         name: 'spond-mcli',
-        version: '1.0.0',
+        version: SERVER_VERSION,
       },
       {
         capabilities: {
@@ -35,12 +40,12 @@ export class SpondMcpServer {
     try {
       // Use provided client or create one based on environment config
       if (spondClient) {
-        this.core = new SpondCore(spondClient);
+        this.core = new SpondCore(spondClient, workspaceDir);
       } else {
         const config = getTokenWithFileFallback();
         const client = buildSpondClient(config.token, config.fetchFn);
 
-        this.core = new SpondCore(client);
+        this.core = new SpondCore(client, workspaceDir);
 
         if (config.useMockData) {
           console.error('Spond MCP server initialized with mock data');

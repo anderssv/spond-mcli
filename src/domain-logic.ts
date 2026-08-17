@@ -32,6 +32,16 @@ export function isContentSearchable(mediaType?: string): boolean {
   return getConverterCommand(mediaType) !== null;
 }
 
+export function sanitizeResourceIdHint(hint: string, maxLength = 120): string {
+  return hint
+    .replace(/\0/g, '')
+    .split(/[/\\]/)
+    .pop()!
+    .replace(/\.\./g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '')
+    .slice(0, maxLength);
+}
+
 export interface MyMember {
   memberId: string;
   firstName: string;

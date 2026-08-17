@@ -6,7 +6,30 @@ jest.mock('node-fetch', () => ({
 }));
 
 import type { Server } from 'http';
+import { mkdirSync, writeFileSync } from 'fs';
 import { startHttpServer } from '../../src/http-server.js';
+import { getOrCreateTokenWorkspaceDir, resolveResourcePath } from '../../src/workspace-manager.js';
+
+const REAL_LOOKING_TOKEN_A = 'a-fake-but-valid-looking-spond-token-for-isolation-testing-A';
+const REAL_LOOKING_TOKEN_B = 'a-fake-but-valid-looking-spond-token-for-isolation-testing-B';
+
+async function callSearchResourceText(baseUrl: string, token: string, resourceId: string): Promise<any> {
+  const response = await fetch(`${baseUrl}/mcp`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+      authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'search_resource_text', arguments: { resourceId, searchTerm: 'practice' } }
+    })
+  });
+  return response;
+}
 
 // The Streamable HTTP transport responds via SSE (one "data:" event per
 // message) rather than a plain JSON body. Any real MCP client already
@@ -105,6 +128,35 @@ describe('HTTP MCP server', () => {
     const body = await readSseJsonRpcResponse(response);
     const data = JSON.parse(body.result.content[0].text);
     expect(Array.isArray(data)).toBe(true);
+  });
+
+  test('a resourceId created under one token is not reachable via a different token', async () => {
+    const workspaceA = await getOrCreateTokenWorkspaceDir(REAL_LOOKING_TOKEN_A);
+    const resourceId = 'isolation-test-resource';
+    const textPath = resolveResourcePath(workspaceA, 'text', resourceId);
+    mkdirSync(require('path').dirname(textPath), { recursive: true });
+    writeFileSync(textPath, 'Practice moved to Tuesday\n');
+
+    const ownRequest = await callSearchResourceText(baseUrl, REAL_LOOKING_TOKEN_A, resourceId);
+    const ownBody = await readSseJsonRpcResponse(ownRequest);
+    expect(ownBody.result.content[0].text).toContain('Practice moved to Tuesday');
+
+    const otherRequest = await callSearchResourceText(baseUrl, REAL_LOOKING_TOKEN_B, resourceId);
+    const otherBody = await readSseJsonRpcResponse(otherRequest);
+    expect(otherBody.error?.message).toContain('Unknown resourceId');
+  });
+
+  test('a resource created in one HTTP request is reachable in a later request with the same token', async () => {
+    const token = `${REAL_LOOKING_TOKEN_A}-reuse`;
+    const workspaceDir = await getOrCreateTokenWorkspaceDir(token);
+    const resourceId = 'reuse-test-resource';
+    const textPath = resolveResourcePath(workspaceDir, 'text', resourceId);
+    mkdirSync(require('path').dirname(textPath), { recursive: true });
+    writeFileSync(textPath, 'Practice moved to Tuesday\n');
+
+    const laterRequest = await callSearchResourceText(baseUrl, token, resourceId);
+    const laterBody = await readSseJsonRpcResponse(laterRequest);
+    expect(laterBody.result.content[0].text).toContain('Practice moved to Tuesday');
   });
 
   test('unknown path returns 404', async () => {

@@ -8,6 +8,32 @@ jest.mock('node-fetch', () => ({
   default: jest.fn()
 }));
 
+// A minimal but valid single-page PDF containing the text "Hello World",
+// used to exercise the real pdftotext binary in tests.
+const MINIMAL_PDF = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 200 200] /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 44 >>
+stream
+BT /F1 24 Tf 20 100 Td (Hello World) Tj ET
+endstream
+endobj
+trailer
+<< /Size 6 /Root 1 0 R >>
+%%EOF
+`;
+
 describe('MCP Tool Capabilities for Users', () => {
   let core: SpondCore;
 
@@ -275,118 +301,134 @@ describe('MCP Tool Capabilities for Users', () => {
   });
 
   describe('Attachment Tools', () => {
-    const fs = require('fs');
-    const os = require('os');
-    const path = require('path');
+    test('should fetch an attachment and return a resourceId', async () => {
+      const result = await core.processToolCall('get_attachment', {
+        url: 'https://example.com/attachment.pdf',
+        groupId: 'GROUP_GAMING_CENTER'
+      });
 
-    test('should fetch and save an attachment', async () => {
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spond-test-'));
-      const filePath = path.join(tmpDir, 'test-attachment.txt');
-
-      try {
-        const result = await core.processToolCall('get_attachment', {
-          url: 'https://example.com/attachment.pdf',
-          groupId: 'GROUP_GAMING_CENTER',
-          filePath
-        });
-
-        expect(result.type).toBe(ToolCallResultType.Success);
-        expect(result.data.message).toContain(filePath);
-        expect(fs.existsSync(filePath)).toBe(true);
-      } finally {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      }
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data.resourceId).toEqual(expect.any(String));
+      expect(result.data.sizeBytes).toBeGreaterThan(0);
     });
 
-    test('should require url, groupId, and filePath for get_attachment', async () => {
+    test('should require url and groupId for get_attachment', async () => {
       await expect(
-        core.processToolCall('get_attachment', { groupId: 'g', filePath: '/tmp/f' })
+        core.processToolCall('get_attachment', { groupId: 'g' })
       ).rejects.toThrow('url is required');
 
       await expect(
-        core.processToolCall('get_attachment', { url: 'http://x', filePath: '/tmp/f' })
+        core.processToolCall('get_attachment', { url: 'http://x' })
       ).rejects.toThrow('groupId is required');
-
-      await expect(
-        core.processToolCall('get_attachment', { url: 'http://x', groupId: 'g' })
-      ).rejects.toThrow('filePath is required');
     });
 
-    test('should fetch and save a group file', async () => {
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spond-test-'));
-      const filePath = path.join(tmpDir, 'test-group-file.pdf');
+    test('should fetch a group file and return a resourceId', async () => {
+      const result = await core.processToolCall('get_group_file', {
+        fileUrl: 'https://example.com/group-file.pdf',
+        groupId: 'GROUP_GAMING_CENTER'
+      });
 
-      try {
-        const result = await core.processToolCall('get_group_file', {
-          fileUrl: 'https://example.com/group-file.pdf',
-          groupId: 'GROUP_GAMING_CENTER',
-          filePath
-        });
-
-        expect(result.type).toBe(ToolCallResultType.Success);
-        expect(result.data.message).toContain(filePath);
-        expect(fs.existsSync(filePath)).toBe(true);
-      } finally {
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-      }
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data.resourceId).toEqual(expect.any(String));
+      expect(result.data.sizeBytes).toBeGreaterThan(0);
     });
 
-    test('should require fileUrl, groupId, and filePath for get_group_file', async () => {
+    test('should require fileUrl and groupId for get_group_file', async () => {
       await expect(
-        core.processToolCall('get_group_file', { groupId: 'g', filePath: '/tmp/f' })
+        core.processToolCall('get_group_file', { groupId: 'g' })
       ).rejects.toThrow('fileUrl is required');
 
       await expect(
-        core.processToolCall('get_group_file', { fileUrl: 'http://x', filePath: '/tmp/f' })
+        core.processToolCall('get_group_file', { fileUrl: 'http://x' })
       ).rejects.toThrow('groupId is required');
-
-      await expect(
-        core.processToolCall('get_group_file', { fileUrl: 'http://x', groupId: 'g' })
-      ).rejects.toThrow('filePath is required');
     });
   });
 
   describe('File Conversion Tools', () => {
-    const fs = require('fs');
-    const os = require('os');
-    const path = require('path');
-
-    test('should require inputPath and outputPath for convert_pdf_to_text', async () => {
+    test('should require resourceId for convert_pdf_to_text', async () => {
       await expect(
-        core.processToolCall('convert_pdf_to_text', { outputPath: '/tmp/out.txt' })
-      ).rejects.toThrow('inputPath is required');
-
-      await expect(
-        core.processToolCall('convert_pdf_to_text', { inputPath: '/tmp/in.pdf' })
-      ).rejects.toThrow('outputPath is required');
+        core.processToolCall('convert_pdf_to_text', {})
+      ).rejects.toThrow('resourceId is required');
     });
 
-    test('should require inputPath and outputPath for convert_docx_to_text', async () => {
+    test('should require resourceId for convert_docx_to_text', async () => {
       await expect(
-        core.processToolCall('convert_docx_to_text', { outputPath: '/tmp/out.txt' })
-      ).rejects.toThrow('inputPath is required');
-
-      await expect(
-        core.processToolCall('convert_docx_to_text', { inputPath: '/tmp/in.docx' })
-      ).rejects.toThrow('outputPath is required');
+        core.processToolCall('convert_docx_to_text', {})
+      ).rejects.toThrow('resourceId is required');
     });
 
-    test('should fail when input PDF file does not exist', async () => {
+    test('should fail with an unknown resourceId for convert_pdf_to_text', async () => {
       await expect(
-        core.processToolCall('convert_pdf_to_text', {
-          inputPath: '/tmp/nonexistent-file-12345.pdf',
-          outputPath: '/tmp/output.txt'
-        })
-      ).rejects.toThrow('Input PDF file not found');
+        core.processToolCall('convert_pdf_to_text', { resourceId: 'nonexistent-resource-12345' })
+      ).rejects.toThrow('Unknown resourceId');
     });
 
-    test('should fail when input DOCX file does not exist', async () => {
+    test('should fail with an unknown resourceId for convert_docx_to_text', async () => {
       await expect(
-        core.processToolCall('convert_docx_to_text', {
-          inputPath: '/tmp/nonexistent-file-12345.docx',
-          outputPath: '/tmp/output.txt'
-        })
-      ).rejects.toThrow('Input DOCX file not found');
+        core.processToolCall('convert_docx_to_text', { resourceId: 'nonexistent-resource-12345' })
+      ).rejects.toThrow('Unknown resourceId');
+    });
+
+    test('should convert a real PDF resource to text, creating the text/ namespace directory on first use', async () => {
+      const fs = require('fs');
+      const os = require('os');
+      const path = require('path');
+      const { resolveResourcePath } = require('../../src/workspace-manager.js');
+
+      const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spond-convert-test-'));
+      const scopedCore = new SpondCore(SpondClientFake.withMockData(), workspaceDir);
+      const resourceId = 'real-pdf-resource';
+      const rawPath = resolveResourcePath(workspaceDir, 'raw', resourceId);
+      fs.mkdirSync(path.dirname(rawPath), { recursive: true });
+      fs.writeFileSync(rawPath, MINIMAL_PDF);
+
+      const result = await scopedCore.processToolCall('convert_pdf_to_text', { resourceId });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data.preview).toContain('Hello World');
+      expect(result.data.lineCount).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Resource Search', () => {
+    test('should find matching lines in a converted resource, without returning the whole document', async () => {
+      const fs = require('fs');
+      const os = require('os');
+      const path = require('path');
+      const { resolveResourcePath } = require('../../src/workspace-manager.js');
+
+      const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spond-search-test-'));
+      const scopedCore = new SpondCore(SpondClientFake.withMockData(), workspaceDir);
+      const resourceId = 'abc123-report.pdf';
+      const textPath = resolveResourcePath(workspaceDir, 'text', resourceId);
+      fs.mkdirSync(path.dirname(textPath), { recursive: true });
+      fs.writeFileSync(textPath, 'line one\nPractice moved to Tuesday\nline three\n');
+
+      const result = await scopedCore.processToolCall('search_resource_text', {
+        resourceId,
+        searchTerm: 'tuesday'
+      });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data.matches).toEqual([{ lineNumber: 2, line: 'Practice moved to Tuesday' }]);
+      expect(result.data.totalMatches).toBe(1);
+      expect(result.data.truncated).toBe(false);
+    });
+
+    test('should require resourceId and searchTerm for search_resource_text', async () => {
+      await expect(
+        core.processToolCall('search_resource_text', { searchTerm: 'x' })
+      ).rejects.toThrow('resourceId is required');
+
+      await expect(
+        core.processToolCall('search_resource_text', { resourceId: 'r' })
+      ).rejects.toThrow('searchTerm is required');
+    });
+
+    test('should fail with an unknown resourceId for search_resource_text', async () => {
+      await expect(
+        core.processToolCall('search_resource_text', { resourceId: 'nonexistent-resource-12345', searchTerm: 'x' })
+      ).rejects.toThrow('Unknown resourceId');
     });
   });
 
