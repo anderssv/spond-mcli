@@ -3,6 +3,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ErrorCode,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   McpError,
@@ -13,11 +15,12 @@ import { SpondCore, CoreError, CoreErrorCode, ToolCallResult, ResourceReadResult
 import { getTokenWithFileFallback } from './token-config.js';
 import { ISpondClient } from './spond-client-interface.js';
 import { buildSpondClient } from './client-factory.js';
+import { getPromptDefinitions, getPrompt } from './prompts.js';
 
 // Kept in sync with package.json's "version" — __tests__/unit/server-version.test.ts
 // asserts they match, since ESM JSON-import syntax isn't portable across
 // tsc's build output and ts-jest's per-file transpile mode.
-export const SERVER_VERSION = '3.1.0';
+export const SERVER_VERSION = '3.2.0';
 
 export class SpondMcpServer {
   private server: Server;
@@ -33,6 +36,7 @@ export class SpondMcpServer {
         capabilities: {
           resources: {},
           tools: {},
+          prompts: {},
         },
       }
     );
@@ -102,6 +106,22 @@ export class SpondMcpServer {
         throw error;
       }
     });
+
+    // List available prompts
+    this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
+      return {
+        prompts: getPromptDefinitions()
+      };
+    });
+
+    // Handle prompt retrieval
+    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      try {
+        return getPrompt(request.params.name, request.params.arguments ?? {}) as ReturnType<typeof getPrompt> & Record<string, unknown>;
+      } catch (error) {
+        throw new McpError(ErrorCode.InvalidParams, (error as Error).message);
+      }
+    });
   }
 
   private convertToolResultToMcp(result: ToolCallResult) {
@@ -116,14 +136,14 @@ export class SpondMcpServer {
       };
     }
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify(result.data)
-        }
-      ]
-    };
+    const content: { type: 'text'; text: string }[] = [
+      { type: 'text', text: JSON.stringify(result.data) }
+    ];
+    if (result.note) {
+      content.push({ type: 'text', text: result.note });
+    }
+
+    return { content };
   }
 
   private convertResourceResultToMcp(result: ResourceReadResult) {

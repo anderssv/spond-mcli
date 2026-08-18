@@ -130,6 +130,29 @@ describe('HTTP MCP server', () => {
     expect(Array.isArray(data)).toBe(true);
   });
 
+  test('POST /mcp surfaces a truncation note as a second content block when results are capped', async () => {
+    const response = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: 'Bearer mock-data'
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'get_events', arguments: { maxResults: 1 } }
+      })
+    });
+
+    expect(response.status).toBe(200);
+    const body = await readSseJsonRpcResponse(response);
+    expect(body.result.content).toHaveLength(2);
+    expect(JSON.parse(body.result.content[0].text)).toHaveLength(1);
+    expect(body.result.content[1].text).toMatch(/more results/i);
+  });
+
   test('a resourceId created under one token is not reachable via a different token', async () => {
     const workspaceA = await getOrCreateTokenWorkspaceDir(REAL_LOOKING_TOKEN_A);
     const resourceId = 'isolation-test-resource';
@@ -163,5 +186,42 @@ describe('HTTP MCP server', () => {
     const response = await fetch(`${baseUrl}/nonexistent`);
 
     expect(response.status).toBe(404);
+  });
+
+  test('POST /mcp with Bearer mock-data lists prompts', async () => {
+    const response = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: 'Bearer mock-data'
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'prompts/list', params: {} })
+    });
+
+    expect(response.status).toBe(200);
+    const body = await readSseJsonRpcResponse(response);
+    expect(body.result.prompts.some((p: any) => p.name === 'upcoming_events_for_group')).toBe(true);
+  });
+
+  test('POST /mcp with Bearer mock-data can get a prompt with substituted arguments', async () => {
+    const response = await fetch(`${baseUrl}/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: 'Bearer mock-data'
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'prompts/get',
+        params: { name: 'upcoming_events_for_group', arguments: { groupName: 'U12 Boys' } }
+      })
+    });
+
+    expect(response.status).toBe(200);
+    const body = await readSseJsonRpcResponse(response);
+    expect(body.result.messages[0].content.text).toContain('U12 Boys');
   });
 });

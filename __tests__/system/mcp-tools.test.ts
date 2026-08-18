@@ -70,6 +70,15 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(Array.isArray(result.data)).toBe(true);
     });
 
+    test('should surface a truncation note on get_events when more results exist than maxResults', async () => {
+      const truncated = await core.processToolCall('get_events', { maxResults: 1 });
+      expect(truncated.data).toHaveLength(1);
+      expect(truncated.note).toMatch(/more results/i);
+
+      const untruncated = await core.processToolCall('get_events', { maxResults: 100 });
+      expect(untruncated.note).toBeUndefined();
+    });
+
     test('should filter get_events results with a JMESPath query', async () => {
       const result = await core.processToolCall('get_events', {
         query: "[?contains(heading, 'Gaming')]"
@@ -242,6 +251,15 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.data[0]).toHaveProperty('groupName');
     });
 
+    test('should surface a truncation note on get_posts when more results exist than maxResults', async () => {
+      const truncated = await core.processToolCall('get_posts', { maxResults: 1 });
+      expect(truncated.data).toHaveLength(1);
+      expect(truncated.note).toMatch(/more results/i);
+
+      const untruncated = await core.processToolCall('get_posts', { maxResults: 100 });
+      expect(untruncated.note).toBeUndefined();
+    });
+
     test('should retrieve a specific post by ID', async () => {
       const result = await core.processToolCall('get_post_by_id', { postId: 'POST_001' });
 
@@ -353,6 +371,15 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.data.every((item: any) => item.kind === 'event')).toBe(true);
     });
 
+    test('should surface a truncation note on search_all when more results exist than maxResults', async () => {
+      const truncated = await core.processToolCall('search_all', { searchTerm: 'a', maxResults: 1 });
+      expect(truncated.data).toHaveLength(1);
+      expect(truncated.note).toMatch(/more results/i);
+
+      const untruncated = await core.processToolCall('search_all', { searchTerm: 'a', maxResults: 100 });
+      expect(untruncated.note).toBeUndefined();
+    });
+
     test('should require searchTerm for search_all', async () => {
       await expect(
         core.processToolCall('search_all', {})
@@ -428,6 +455,15 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.type).toBe(ToolCallResultType.Success);
       expect(result.data.length).toBeGreaterThan(0);
       expect(result.data.every((name: string) => name === 'meeting-notes.pdf')).toBe(true);
+    });
+
+    test('should surface a truncation note on search_files when more results exist than maxResults', async () => {
+      const truncated = await core.processToolCall('search_files', { searchTerm: 'meeting', maxResults: 1 });
+      expect(truncated.data).toHaveLength(1);
+      expect(truncated.note).toMatch(/more results/i);
+
+      const untruncated = await core.processToolCall('search_files', { searchTerm: 'meeting', maxResults: 100 });
+      expect(untruncated.note).toBeUndefined();
     });
   });
 

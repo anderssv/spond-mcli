@@ -69,6 +69,7 @@ export interface ResourceDefinition {
 export type ToolCallResult = {
   data: any; // The actual data object (events, posts, groups, etc.)
   type?: ToolCallResultType; // Optional result type
+  note?: string; // Optional side-channel note (e.g. truncation warning) — kept separate from `data` so the JSON shape stays unchanged
 };
 
 export type ResourceReadResult = {
@@ -208,6 +209,21 @@ export class SpondCore {
     const groups = await this.spondClient.getGroups();
     return groups.find(g => g.name?.toLowerCase().includes(groupName.toLowerCase()))?.id;
   }
+
+  // Fetches one more item than requested to detect whether more results exist
+  // beyond `limit`, without changing the underlying method's return shape —
+  // MCP tools use this to surface a truncation note without breaking the
+  // existing bare-array response shape for the data itself.
+  private async withTruncationCheck<T>(
+    fetchWithLimit: (limit: number) => Promise<T[]>,
+    limit: number
+  ): Promise<{ items: T[]; truncated: boolean }> {
+    const items = await fetchWithLimit(limit + 1);
+    const truncated = items.length > limit;
+    return { items: truncated ? items.slice(0, limit) : items, truncated };
+  }
+
+  private static readonly TRUNCATION_NOTE = 'More results are available than shown — increase maxResults, narrow your search, or use query to filter/project server-side.';
 
   async getAttachment(url: string, groupId: string, filePath: string) {
     return await this.spondClient.fetchAttachmentToFile(url, filePath, groupId);
@@ -806,17 +822,19 @@ export class SpondCore {
     ];
   }
 
-  async processToolCall(toolName: string, params: any) {
+  async processToolCall(toolName: string, params: any): Promise<ToolCallResult> {
     try {
       switch (toolName) {
         case 'get_events': {
           const { query, groupName, maxResults, ...rest } = params as SpondEventsQueryParams & { query?: string; groupName?: string; maxResults?: number };
-          const events = groupName
-            ? await this.getEventsByGroup(groupName, maxResults ?? 20, rest)
-            : await this.getEvents({ ...rest, ...(maxResults !== undefined ? { max: maxResults } : {}) });
+          const limit = maxResults ?? 20;
+          const { items, truncated } = groupName
+            ? await this.withTruncationCheck(scanLimit => this.getEventsByGroup(groupName, scanLimit, rest), limit)
+            : await this.withTruncationCheck(scanLimit => this.getEvents({ ...rest, max: scanLimit }), limit);
           return {
-            data: applyQuery(events, query),
-            type: ToolCallResultType.Success
+            data: applyQuery(items, query),
+            type: ToolCallResultType.Success,
+            ...(truncated ? { note: SpondCore.TRUNCATION_NOTE } : {})
           };
         }
 
@@ -861,17 +879,19 @@ export class SpondCore {
 
         case 'get_posts': {
           const { query, groupName, maxResults, ...rest } = params as SpondPostsQueryParams & { query?: string; groupName?: string; maxResults?: number };
-          const postParams = { ...rest, ...(maxResults !== undefined ? { max: maxResults } : {}) };
+          const limit = maxResults ?? 5;
           if (groupName) {
             const groupId = await this.resolveGroupIdByName(groupName);
             if (!groupId) {
               return { data: applyQuery([], query), type: ToolCallResultType.Success };
             }
-            postParams.groupId = groupId;
+            rest.groupId = groupId;
           }
+          const { items, truncated } = await this.withTruncationCheck(scanLimit => this.getPosts({ ...rest, max: scanLimit }), limit);
           return {
-            data: applyQuery(await this.getPosts(postParams), query),
-            type: ToolCallResultType.Success
+            data: applyQuery(items, query),
+            type: ToolCallResultType.Success,
+            ...(truncated ? { note: SpondCore.TRUNCATION_NOTE } : {})
           };
         }
 
@@ -908,9 +928,11 @@ export class SpondCore {
           requireParams(params, 'searchTerm');
           requireString(params, 'searchTerm');
           validateMaxResults(params, 'maxResults', 1, 100);
+          const { items, truncated } = await this.withTruncationCheck(scanLimit => this.searchAll(searchTerm, scanLimit), maxResults);
           return {
-            data: applyQuery(await this.searchAll(searchTerm, maxResults), query),
-            type: ToolCallResultType.Success
+            data: applyQuery(items, query),
+            type: ToolCallResultType.Success,
+            ...(truncated ? { note: SpondCore.TRUNCATION_NOTE } : {})
           };
         }
 
@@ -923,9 +945,14 @@ export class SpondCore {
             query?: string;
           };
           requireParams(params, 'searchTerm');
+          const { items, truncated } = await this.withTruncationCheck(
+            scanLimit => this.searchFiles(searchTerm, { groupName, content }, scanLimit),
+            maxResults
+          );
           return {
-            data: applyQuery(await this.searchFiles(searchTerm, { groupName, content }, maxResults), query),
-            type: ToolCallResultType.Success
+            data: applyQuery(items, query),
+            type: ToolCallResultType.Success,
+            ...(truncated ? { note: SpondCore.TRUNCATION_NOTE } : {})
           };
         }
 
