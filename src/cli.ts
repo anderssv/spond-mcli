@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'child_process';
+import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { parseArgs, isHelpFlag, USAGE, CliCommand } from './cli-args.js';
@@ -141,8 +142,10 @@ async function main(): Promise<void> {
       if (parsed.browser) {
         await performBrowserLogin();
       } else {
-        const email = process.env.SPOND_USERNAME || await promptText('Spond email: ');
-        const password = process.env.SPOND_PASSWORD || await promptPassword('Spond password: ');
+        const email = parsed.username || process.env.SPOND_USERNAME || await promptText('Spond email: ');
+        const password = parsed.passwordFile
+          ? readFileSync(parsed.passwordFile, 'utf-8').trim()
+          : process.env.SPOND_PASSWORD || await promptPassword('Spond password: ');
         await performPasswordLogin(email, password);
       }
     } catch (error) {

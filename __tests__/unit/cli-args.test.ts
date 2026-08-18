@@ -299,6 +299,12 @@ describe('CLI argument parsing', () => {
     expect(result).toEqual({ command: 'login', browser: true });
   });
 
+  it('"login --username <email> --password-file <path>" maps to login command with both fields', () => {
+    const result = parseArgs(['login', '--username', 'anders@f12.no', '--password-file', 'spondpw.txt']);
+
+    expect(result).toEqual({ command: 'login', browser: false, username: 'anders@f12.no', passwordFile: 'spondpw.txt' });
+  });
+
   // Agent help command
   it('"--agent-help" maps to agentHelp command', () => {
     const result = parseArgs(['--agent-help']);

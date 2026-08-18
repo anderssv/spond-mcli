@@ -22,7 +22,7 @@ export type CliCommand =
   | { command: 'convertPdfToText'; inputPath: string; outputPath: string }
   | { command: 'convertDocxToText'; inputPath: string; outputPath: string }
   | { command: 'convertXlsxToText'; inputPath: string; outputPath: string }
-  | { command: 'login'; browser: boolean }
+  | { command: 'login'; browser: boolean; username?: string; passwordFile?: string }
   | { command: 'agentHelp' }
   | { command: 'mcp'; http: boolean; port?: number }
   | { command: 'myMembers' };
@@ -52,7 +52,7 @@ Usage:
   spond-mcli pdf-to-text <inputPath> <outputPath>
   spond-mcli docx-to-text <inputPath> <outputPath>
   spond-mcli xlsx-to-text <inputPath> <outputPath>
-  spond-mcli login [--browser]
+  spond-mcli login [--browser] [--username <email>] [--password-file <path>]
   spond-mcli mcp [--http] [--port <n>]
   spond-mcli --agent-help
 
@@ -98,10 +98,16 @@ Login:
   Use 'spond-mcli login --browser' instead if your account has 2FA
   enabled; it opens a real browser window so you can complete 2FA
   yourself, then extracts the token once you're logged in.
+  Use '--username <email> --password-file <path>' for a non-interactive
+  login (e.g. scripting, or a terminal that can't handle password
+  prompts) — reads the password from a file instead of a prompt or
+  SPOND_PASSWORD, so it never touches shell history or process args.
 
 Options:
   --browser                  Log in via a browser window instead of email/password
                               (needed for accounts with 2FA enabled)
+  --username <email>         Spond email for non-interactive login (overrides SPOND_USERNAME)
+  --password-file <path>     Read the login password from this file instead of prompting
   --http                     Serve the MCP server over HTTP instead of stdio
   --port <n>                 Port for --http mode (default 8080, or $PORT)
   --max <n>                  Maximum number of results
@@ -315,7 +321,12 @@ export function parseArgs(argv: string[]): CliCommand | null {
   }
 
   if (args['login']) {
-    return { command: 'login', browser: !!args['--browser'] };
+    return {
+      command: 'login',
+      browser: !!args['--browser'],
+      username: (args['--username'] as string | null) ?? undefined,
+      passwordFile: (args['--password-file'] as string | null) ?? undefined
+    };
   }
 
   if (args['--agent-help']) {
