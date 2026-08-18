@@ -1,6 +1,6 @@
 {
   "name": "spond-mcli",
-  "version": "2.3.0",
+  "version": "3.0.0",
   "description": "MCP server and CLI for Spond API integration",
   "main": "dist/index.js",
   "bin": {

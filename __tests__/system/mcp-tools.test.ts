@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, jest } from '@jest/globals';
 import { SpondCore, CoreError, CoreErrorCode, ToolCallResultType } from '../../src/spond-core.js';
 import { MCPTestHelper } from '../helpers/mcp-test-helper.js';
 import { SpondClientFake } from '../../src/spond-client-fake.js';
+import { SpondGroupMother } from '../helpers/object-mothers.js';
 
 // Mock node-fetch to avoid ES module issues in tests
 jest.mock('node-fetch', () => ({
@@ -103,8 +104,8 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(Array.isArray(result.data)).toBe(true);
     });
     
-    test('should filter get_events_by_group results with a JMESPath query', async () => {
-      const result = await core.processToolCall('get_events_by_group', {
+    test('should filter get_events results with groupName and a JMESPath query', async () => {
+      const result = await core.processToolCall('get_events', {
         groupName: 'Gaming Center',
         query: "[?contains(heading, 'Gaming')].heading"
       });
@@ -114,17 +115,17 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.data.every((heading: string) => heading.includes('Gaming'))).toBe(true);
     });
 
-    test('should not leak the query param into the real getEventsByGroup API call', async () => {
+    test('should not leak the query/groupName params into the real getEventsByGroup API call', async () => {
       const client = SpondClientFake.withMockData();
       const spyCore = new SpondCore(client);
       const getEventsByGroupSpy = jest.spyOn(client, 'getEventsByGroup');
 
-      await spyCore.processToolCall('get_events_by_group', { groupName: 'Gaming Center', query: '[?heading]' });
+      await spyCore.processToolCall('get_events', { groupName: 'Gaming Center', query: '[?heading]' });
 
       expect(getEventsByGroupSpy).toHaveBeenCalledWith(
         'Gaming Center',
         expect.any(Number),
-        expect.not.objectContaining({ query: expect.anything() })
+        expect.not.objectContaining({ query: expect.anything(), groupName: expect.anything() })
       );
     });
 
@@ -388,8 +389,8 @@ describe('MCP Tool Capabilities for Users', () => {
       ).rejects.toThrow(CoreError);
     });
 
-    test('should retrieve posts by group name', async () => {
-      const result = await core.processToolCall('get_posts_by_group', {
+    test('should retrieve posts by group name via get_posts', async () => {
+      const result = await core.processToolCall('get_posts', {
         groupName: 'Gaming Center',
         maxResults: 10
       });
@@ -400,10 +401,22 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.data[0].groupName).toContain('Gaming');
     });
 
-    test('should require groupName for get_posts_by_group', async () => {
-      await expect(
-        core.processToolCall('get_posts_by_group', {})
-      ).rejects.toThrow('groupName is required');
+    test('should return an empty array for get_posts with an unmatched groupName', async () => {
+      const result = await core.processToolCall('get_posts', { groupName: 'Nonexistent Group XYZ' });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data).toEqual([]);
+    });
+
+    test('should combine get_posts groupName with type filtering (capability improvement over old get_posts_by_group)', async () => {
+      const result = await core.processToolCall('get_posts', {
+        groupName: 'Gaming Center',
+        type: 'PLAIN',
+        maxResults: 10
+      });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(Array.isArray(result.data)).toBe(true);
     });
 
     test('should filter search_files results with a JMESPath query', async () => {
@@ -415,6 +428,50 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.type).toBe(ToolCallResultType.Success);
       expect(result.data.length).toBeGreaterThan(0);
       expect(result.data.every((name: string) => name === 'meeting-notes.pdf')).toBe(true);
+    });
+  });
+
+  describe('Members Tools', () => {
+    test('should list members the caller is a guardian for', async () => {
+      const client = new SpondClientFake('my-profile-id');
+      const group = SpondGroupMother.createActiveGroup();
+      client.addGroup({
+        ...group,
+        members: [{
+          id: 'member-1',
+          firstName: 'Kid',
+          lastName: 'One',
+          guardians: [{ profile: { id: 'my-profile-id' } }]
+        } as any]
+      });
+      const scopedCore = new SpondCore(client);
+
+      const result = await scopedCore.processToolCall('get_my_members', {});
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data).toEqual([
+        expect.objectContaining({ memberId: 'member-1', firstName: 'Kid', lastName: 'One' })
+      ]);
+    });
+
+    test('should filter get_my_members results with a JMESPath query', async () => {
+      const client = new SpondClientFake('my-profile-id');
+      const group = SpondGroupMother.createActiveGroup();
+      client.addGroup({
+        ...group,
+        members: [{
+          id: 'member-1',
+          firstName: 'Kid',
+          lastName: 'One',
+          guardians: [{ profile: { id: 'my-profile-id' } }]
+        } as any]
+      });
+      const scopedCore = new SpondCore(client);
+
+      const result = await scopedCore.processToolCall('get_my_members', { query: '[].memberId' });
+
+      expect(result.type).toBe(ToolCallResultType.Success);
+      expect(result.data).toEqual(['member-1']);
     });
   });
 
@@ -470,9 +527,9 @@ describe('MCP Tool Capabilities for Users', () => {
     });
   });
 
-  describe('Attachment Tools', () => {
-    test('should fetch an attachment and return a resourceId', async () => {
-      const result = await core.processToolCall('get_attachment', {
+  describe('File Tools', () => {
+    test('should fetch a file and return a resourceId (attachment URL)', async () => {
+      const result = await core.processToolCall('get_file', {
         url: 'https://example.com/attachment.pdf',
         groupId: 'GROUP_GAMING_CENTER'
       });
@@ -482,19 +539,9 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.data.sizeBytes).toBeGreaterThan(0);
     });
 
-    test('should require url and groupId for get_attachment', async () => {
-      await expect(
-        core.processToolCall('get_attachment', { groupId: 'g' })
-      ).rejects.toThrow('url is required');
-
-      await expect(
-        core.processToolCall('get_attachment', { url: 'http://x' })
-      ).rejects.toThrow('groupId is required');
-    });
-
-    test('should fetch a group file and return a resourceId', async () => {
-      const result = await core.processToolCall('get_group_file', {
-        fileUrl: 'https://example.com/group-file.pdf',
+    test('should fetch a file and return a resourceId (group file URL)', async () => {
+      const result = await core.processToolCall('get_file', {
+        url: 'https://example.com/group-file.pdf',
         groupId: 'GROUP_GAMING_CENTER'
       });
 
@@ -503,79 +550,90 @@ describe('MCP Tool Capabilities for Users', () => {
       expect(result.data.sizeBytes).toBeGreaterThan(0);
     });
 
-    test('should require fileUrl and groupId for get_group_file', async () => {
+    test('should require url and groupId for get_file', async () => {
       await expect(
-        core.processToolCall('get_group_file', { groupId: 'g' })
-      ).rejects.toThrow('fileUrl is required');
+        core.processToolCall('get_file', { groupId: 'g' })
+      ).rejects.toThrow('url is required');
 
       await expect(
-        core.processToolCall('get_group_file', { fileUrl: 'http://x' })
+        core.processToolCall('get_file', { url: 'http://x' })
       ).rejects.toThrow('groupId is required');
     });
   });
 
   describe('File Conversion Tools', () => {
-    test('should require resourceId for convert_pdf_to_text', async () => {
+    function seedResource(workspaceDir: string, resourceId: string, rawContent: string, contentType: string) {
+      const fs = require('fs');
+      const path = require('path');
+      const { resolveResourcePath } = require('../../src/workspace-manager.js');
+
+      const rawPath = resolveResourcePath(workspaceDir, 'raw', resourceId);
+      fs.mkdirSync(path.dirname(rawPath), { recursive: true });
+      fs.writeFileSync(rawPath, rawContent);
+
+      const metaPath = resolveResourcePath(workspaceDir, 'meta', resourceId);
+      fs.mkdirSync(path.dirname(metaPath), { recursive: true });
+      fs.writeFileSync(metaPath, JSON.stringify({ contentType }), 'utf-8');
+    }
+
+    test('should require resourceId for convert_resource_to_text', async () => {
       await expect(
-        core.processToolCall('convert_pdf_to_text', {})
+        core.processToolCall('convert_resource_to_text', {})
       ).rejects.toThrow('resourceId is required');
     });
 
-    test('should require resourceId for convert_docx_to_text', async () => {
+    test('should fail with an unknown resourceId for convert_resource_to_text', async () => {
       await expect(
-        core.processToolCall('convert_docx_to_text', {})
-      ).rejects.toThrow('resourceId is required');
-    });
-
-    test('should fail with an unknown resourceId for convert_pdf_to_text', async () => {
-      await expect(
-        core.processToolCall('convert_pdf_to_text', { resourceId: 'nonexistent-resource-12345' })
+        core.processToolCall('convert_resource_to_text', { resourceId: 'nonexistent-resource-12345' })
       ).rejects.toThrow('Unknown resourceId');
     });
 
-    test('should fail with an unknown resourceId for convert_docx_to_text', async () => {
-      await expect(
-        core.processToolCall('convert_docx_to_text', { resourceId: 'nonexistent-resource-12345' })
-      ).rejects.toThrow('Unknown resourceId');
-    });
-
-    test('should convert a real PDF resource to text, creating the text/ namespace directory on first use', async () => {
+    test('should auto-detect PDF and convert a real PDF resource to text', async () => {
       const fs = require('fs');
       const os = require('os');
       const path = require('path');
-      const { resolveResourcePath } = require('../../src/workspace-manager.js');
 
       const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spond-convert-test-'));
       const scopedCore = new SpondCore(SpondClientFake.withMockData(), workspaceDir);
       const resourceId = 'real-pdf-resource';
-      const rawPath = resolveResourcePath(workspaceDir, 'raw', resourceId);
-      fs.mkdirSync(path.dirname(rawPath), { recursive: true });
-      fs.writeFileSync(rawPath, MINIMAL_PDF);
+      seedResource(workspaceDir, resourceId, MINIMAL_PDF, 'application/pdf');
 
-      const result = await scopedCore.processToolCall('convert_pdf_to_text', { resourceId });
+      const result = await scopedCore.processToolCall('convert_resource_to_text', { resourceId });
 
       expect(result.type).toBe(ToolCallResultType.Success);
       expect(result.data.preview).toContain('Hello World');
       expect(result.data.lineCount).toBeGreaterThan(0);
     });
 
-    test('should convert a real spreadsheet resource to CSV text, without relying on a file extension', async () => {
+    test('should auto-detect XLSX and convert a real spreadsheet resource to CSV text, without relying on a file extension', async () => {
       const fs = require('fs');
       const os = require('os');
       const path = require('path');
-      const { resolveResourcePath } = require('../../src/workspace-manager.js');
 
       const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spond-convert-test-'));
       const scopedCore = new SpondCore(SpondClientFake.withMockData(), workspaceDir);
       const resourceId = 'real-xlsx-resource';
-      const rawPath = resolveResourcePath(workspaceDir, 'raw', resourceId);
-      fs.mkdirSync(path.dirname(rawPath), { recursive: true });
-      fs.writeFileSync(rawPath, 'name,age\nAlice,30\n');
+      seedResource(workspaceDir, resourceId, 'name,age\nAlice,30\n', 'application/vnd.ms-excel');
 
-      const result = await scopedCore.processToolCall('convert_xlsx_to_text', { resourceId });
+      const result = await scopedCore.processToolCall('convert_resource_to_text', { resourceId });
 
       expect(result.type).toBe(ToolCallResultType.Success);
       expect(result.data.preview).toContain('Alice');
+    });
+
+    test('should reject an unsupported content type with a clear InvalidParams error', async () => {
+      const fs = require('fs');
+      const os = require('os');
+      const path = require('path');
+
+      const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spond-convert-test-'));
+      const scopedCore = new SpondCore(SpondClientFake.withMockData(), workspaceDir);
+      const resourceId = 'real-image-resource';
+      seedResource(workspaceDir, resourceId, 'not-really-an-image', 'image/jpeg');
+
+      await expect(
+        scopedCore.processToolCall('convert_resource_to_text', { resourceId })
+      ).rejects.toThrow(/Cannot convert content type/);
     });
   });
 

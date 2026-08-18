@@ -96,14 +96,14 @@ describe('MCP Integration Tests (Mock Mode)', () => {
       TestAssertions.validateSearchResults(result.data, searchTerm);
     });
 
-    test('get_events_by_group should filter by group name', async () => {
+    test('get_events with groupName should filter by group name', async () => {
       const groupName = TEST_CONSTANTS.SEARCH_TERMS.COMMUNITY;
       const result = await CommonTestScenarios.validateEventArrayResult(
-        core, 
-        'get_events_by_group', 
+        core,
+        'get_events',
         TestDataGenerators.getSearchParams.byGroup(groupName)
       );
-      
+
       TestAssertions.validateGroupFilter(result.data, groupName);
     });
   });

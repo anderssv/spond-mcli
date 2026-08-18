@@ -1,4 +1,4 @@
-import { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup, AttendanceStatus, calculateRegistrationStatus, resolveMyMembers, matchesSearchTerm, matchesFilename, isContentSearchable, FileResource, FileSearchResult } from './domain-types.js';
+import { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup, AttendanceStatus, calculateRegistrationStatus, resolveMyMembers, matchesSearchTerm, matchesFilename, isContentSearchable, getConverterCommand, FileResource, FileSearchResult } from './domain-types.js';
 import { ISpondClient } from './spond-client-interface.js';
 import { convertFileToText } from './file-converter.js';
 import { createProcessWorkspaceDirSync, generateResourceId, resolveResourcePath } from './workspace-manager.js';
@@ -204,6 +204,11 @@ export class SpondCore {
     return posts.map(post => this.createPostSummary(post, groups));
   }
 
+  private async resolveGroupIdByName(groupName: string): Promise<string | undefined> {
+    const groups = await this.spondClient.getGroups();
+    return groups.find(g => g.name?.toLowerCase().includes(groupName.toLowerCase()))?.id;
+  }
+
   async getAttachment(url: string, groupId: string, filePath: string) {
     return await this.spondClient.fetchAttachmentToFile(url, filePath, groupId);
   }
@@ -216,18 +221,13 @@ export class SpondCore {
     return await this.spondClient.fetchGroupFileToFile(fileUrl, filePath, groupId);
   }
 
-  async getAttachmentAsResource(url: string, groupId: string): Promise<{ resourceId: string; sizeBytes: number; contentType: string }> {
+  async getFileAsResource(url: string, groupId: string): Promise<{ resourceId: string; sizeBytes: number; contentType: string }> {
     const resourceId = generateResourceId(url);
     const rawPath = resolveResourcePath(this.getWorkspaceDir(), 'raw', resourceId);
     const message = await this.getAttachment(url, groupId, rawPath);
-    return { resourceId, ...await this.statResource(rawPath, message) };
-  }
-
-  async getGroupFileAsResource(fileUrl: string, groupId: string): Promise<{ resourceId: string; sizeBytes: number; contentType: string }> {
-    const resourceId = generateResourceId(fileUrl);
-    const rawPath = resolveResourcePath(this.getWorkspaceDir(), 'raw', resourceId);
-    const message = await this.getGroupFile(fileUrl, groupId, rawPath);
-    return { resourceId, ...await this.statResource(rawPath, message) };
+    const stats = await this.statResource(rawPath, message);
+    await this.storeContentType(resourceId, stats.contentType);
+    return { resourceId, ...stats };
   }
 
   private async statResource(rawPath: string, downloadMessage: string): Promise<{ sizeBytes: number; contentType: string }> {
@@ -236,19 +236,40 @@ export class SpondCore {
     return { sizeBytes: stat.size, contentType: contentTypeMatch?.[1] ?? 'unknown' };
   }
 
-  async convertPdfToTextResource(resourceId: string) {
-    return this.convertResourceToText(resourceId, (inputPath, outputPath) => this.convertPdfToText(inputPath, outputPath));
+  private async storeContentType(resourceId: string, contentType: string): Promise<void> {
+    const metaPath = resolveResourcePath(this.getWorkspaceDir(), 'meta', resourceId);
+    await fs.mkdir(dirname(metaPath), { recursive: true });
+    await fs.writeFile(metaPath, JSON.stringify({ contentType }), 'utf-8');
   }
 
-  async convertDocxToTextResource(resourceId: string) {
-    return this.convertResourceToText(resourceId, (inputPath, outputPath) => this.convertDocxToText(inputPath, outputPath));
+  private async getStoredContentType(resourceId: string): Promise<string> {
+    const metaPath = resolveResourcePath(this.getWorkspaceDir(), 'meta', resourceId);
+    try {
+      const raw = await fs.readFile(metaPath, 'utf-8');
+      return (JSON.parse(raw) as { contentType: string }).contentType;
+    } catch {
+      throw new CoreError(CoreErrorCode.InvalidParams, `Unknown resourceId: ${resourceId}. Call get_file first.`);
+    }
   }
 
-  async convertXlsxToTextResource(resourceId: string) {
-    return this.convertResourceToText(resourceId, (inputPath, outputPath) => this.convertXlsxToText(inputPath, outputPath));
+  async convertResourceToText(resourceId: string) {
+    const contentType = await this.getStoredContentType(resourceId);
+    const command = getConverterCommand(contentType);
+    if (!command) {
+      throw new CoreError(CoreErrorCode.InvalidParams,
+        `Cannot convert content type "${contentType}" to text. Supported: PDF, DOCX, XLSX/XLS.`);
+    }
+
+    const converters: Record<string, (inputPath: string, outputPath: string) => Promise<string>> = {
+      pdftotext: (inputPath, outputPath) => this.convertPdfToText(inputPath, outputPath),
+      docx2txt: (inputPath, outputPath) => this.convertDocxToText(inputPath, outputPath),
+      ssconvert: (inputPath, outputPath) => this.convertXlsxToText(inputPath, outputPath)
+    };
+
+    return this.runResourceConversion(resourceId, converters[command]);
   }
 
-  private async convertResourceToText(
+  private async runResourceConversion(
     resourceId: string,
     convert: (inputPath: string, outputPath: string) => Promise<string>
   ): Promise<{ resourceId: string; sizeBytes: number; lineCount: number; preview: string }> {
@@ -258,7 +279,7 @@ export class SpondCore {
     try {
       await fs.access(rawPath);
     } catch {
-      throw new CoreError(CoreErrorCode.InvalidParams, `Unknown resourceId: ${resourceId}. Call get_attachment or get_group_file first.`);
+      throw new CoreError(CoreErrorCode.InvalidParams, `Unknown resourceId: ${resourceId}. Call get_file first.`);
     }
 
     await fs.mkdir(dirname(textPath), { recursive: true });
@@ -281,7 +302,7 @@ export class SpondCore {
     try {
       text = await fs.readFile(textPath, 'utf-8');
     } catch {
-      throw new CoreError(CoreErrorCode.InvalidParams, `Unknown resourceId: ${resourceId}. Call a convert_*_to_text tool on this resource first.`);
+      throw new CoreError(CoreErrorCode.InvalidParams, `Unknown resourceId: ${resourceId}. Call convert_resource_to_text on this resource first.`);
     }
 
     const lowerTerm = searchTerm.toLowerCase();
@@ -321,7 +342,7 @@ export class SpondCore {
     return [
       {
         name: 'get_events',
-        description: 'Get Spond events with optional filtering parameters. No date filtering is applied by default — results can include old/past events. For "what\'s coming up" queries, use get_upcoming_events instead, or set minEndTimestamp/order here explicitly.',
+        description: 'Get Spond events with optional filtering parameters. No date filtering is applied by default — results can include old/past events. For "what\'s coming up" queries, use get_upcoming_events instead, or set minEndTimestamp/order here explicitly. Only scheduled events are returned by default (scheduled=true) — set scheduled=false to include cancelled/unscheduled events.',
         annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
@@ -352,7 +373,7 @@ export class SpondCore {
               description: 'Sort order for events',
               default: 'asc'
             },
-            max: {
+            maxResults: {
               type: 'number',
               description: 'Maximum number of events to return',
               default: 20,
@@ -372,6 +393,10 @@ export class SpondCore {
             groupId: {
               type: 'string',
               description: 'Filter events by specific group ID'
+            },
+            groupName: {
+              type: 'string',
+              description: 'Filter events by group name (partial match) instead of groupId — resolves the group(s) matching this name and returns their events'
             },
             query: {
               type: 'string',
@@ -402,7 +427,7 @@ export class SpondCore {
       },
       {
         name: 'get_upcoming_events',
-        description: 'Get upcoming Spond events (events ending in the future)',
+        description: 'Get upcoming Spond events (events ending in the future). Note: addProfileInfo defaults to false here, unlike get_events where it defaults to true.',
         annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
@@ -424,7 +449,7 @@ export class SpondCore {
       },
       {
         name: 'search_events',
-        description: 'Search Spond events by keyword in title, description, or group name',
+        description: 'Search Spond events by keyword in title, description, or group name. Prefer search_all with a query for more powerful filtering/projection across both events and posts at once; this narrower tool remains for a simple single-type lookup.',
         annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
@@ -445,70 +470,8 @@ export class SpondCore {
         }
       },
       {
-        name: 'get_events_by_group',
-        description: 'Get events from a specific group by group name',
-        annotations: READ_ONLY,
-        inputSchema: {
-          type: 'object',
-          properties: {
-            groupName: {
-              type: 'string',
-              description: 'Name or partial name of the group'
-            },
-            maxResults: {
-              type: 'number',
-              description: 'Maximum number of events to return',
-              default: 20,
-              minimum: 1,
-              maximum: 100
-            },
-            includeComments: {
-              type: 'boolean',
-              description: 'Include comments in the response',
-              default: true
-            },
-            includeHidden: {
-              type: 'boolean',
-              description: 'Include hidden events',
-              default: false
-            },
-            addProfileInfo: {
-              type: 'boolean',
-              description: 'Include profile information',
-              default: true
-            },
-            scheduled: {
-              type: 'boolean',
-              description: 'Only include scheduled events',
-              default: true
-            },
-            order: {
-              type: 'string',
-              enum: ['asc', 'desc'],
-              description: 'Sort order for events',
-              default: 'asc'
-            },
-            minEndTimestamp: {
-              type: 'string',
-              description: 'Minimum end timestamp (ISO 8601 format)',
-              format: 'date-time'
-            },
-            maxEndTimestamp: {
-              type: 'string',
-              description: 'Maximum end timestamp (ISO 8601 format)',
-              format: 'date-time'
-            },
-            query: {
-              type: 'string',
-              description: 'Optional JMESPath expression to filter/project the result before returning it — strongly recommended over fetching everything when you only need a subset, since this tool can return many full event records. Examples: "[?registrationStatus==\'open\'].heading" (titles of events open for registration), "[0:5].{heading: heading, startTime: startTime}" (compact projection of the first 5 events).'
-            }
-          },
-          required: ['groupName']
-        }
-      },
-      {
         name: 'get_posts',
-        description: 'Get Spond posts/messages with optional filtering parameters',
+        description: 'Get Spond posts/messages with optional filtering parameters. Defaults to only 5 results (maxResults) — set it explicitly for more.',
         annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
@@ -534,7 +497,7 @@ export class SpondCore {
               description: 'Include seen count information',
               default: true
             },
-            max: {
+            maxResults: {
               type: 'number',
               description: 'Maximum number of posts to return',
               default: 5,
@@ -544,6 +507,10 @@ export class SpondCore {
             groupId: {
               type: 'string',
               description: 'Filter posts by specific group ID'
+            },
+            groupName: {
+              type: 'string',
+              description: 'Filter posts by group name (partial match) instead of groupId'
             },
             createdAfter: {
               type: 'string',
@@ -579,7 +546,7 @@ export class SpondCore {
       },
       {
         name: 'search_posts',
-        description: 'Search Spond posts by keyword in title, text, or group name',
+        description: 'Search Spond posts by keyword in title, text, or group name. Prefer search_all with a query for more powerful filtering/projection across both events and posts at once; this narrower tool remains for a simple single-type lookup.',
         annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
@@ -661,28 +628,6 @@ export class SpondCore {
         }
       },
       {
-        name: 'get_posts_by_group',
-        description: 'Get posts from a specific group by group name',
-        annotations: READ_ONLY,
-        inputSchema: {
-          type: 'object',
-          properties: {
-            groupName: {
-              type: 'string',
-              description: 'Name or partial name of the group'
-            },
-            maxResults: {
-              type: 'number',
-              description: 'Maximum number of posts to return',
-              default: 50,
-              minimum: 1,
-              maximum: 100
-            }
-          },
-          required: ['groupName']
-        }
-      },
-      {
         name: 'get_groups',
         description: 'Get all Spond groups that the user is a member of',
         annotations: READ_ONLY,
@@ -697,19 +642,33 @@ export class SpondCore {
         }
       },
       {
-        name: 'get_attachment',
-        description: 'Fetch a Spond attachment using authenticated requests. Downloads it into a server-side workspace and returns a resourceId — pass that resourceId to a convert_*_to_text tool to read its contents.',
+        name: 'get_my_members',
+        description: 'List every member the caller is a guardian for, across all groups, with names and group names attached — the fast path to a memberId before accept_event/decline_event, instead of digging through get_event_by_id\'s recipients.group.members[].',
+        annotations: READ_ONLY,
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: {
+              type: 'string',
+              description: 'Optional JMESPath expression to filter/project the result before returning it. Example: "[?groupName==\'U12 Boys\']" (members in one group).'
+            }
+          }
+        }
+      },
+      {
+        name: 'get_file',
+        description: 'Fetch a file from Spond using authenticated requests — either a post attachment or a group file, both use the same signed-URL mechanism. Downloads it into a server-side workspace and returns a resourceId — pass that resourceId to convert_resource_to_text to read its contents (the content type is auto-detected, no need to know which converter applies).',
         annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
             url: {
               type: 'string',
-              description: 'The URL of the attachment to fetch'
+              description: 'The URL of the file to fetch (a post attachment URL or a group file URL)'
             },
             groupId: {
               type: 'string',
-              description: 'The Spond group ID that posted this attachment (required for authentication)'
+              description: 'The Spond group ID that owns this file (required for authentication)'
             }
           },
           required: ['url', 'groupId']
@@ -731,64 +690,15 @@ export class SpondCore {
         }
       },
       {
-        name: 'get_group_file',
-        description: 'Fetch a specific file from a Spond group. Downloads it into a server-side workspace and returns a resourceId — pass that resourceId to a convert_*_to_text tool to read its contents.',
-        annotations: READ_ONLY,
-        inputSchema: {
-          type: 'object',
-          properties: {
-            fileUrl: {
-              type: 'string',
-              description: 'The URL of the file to fetch from the group'
-            },
-            groupId: {
-              type: 'string',
-              description: 'The Spond group ID that contains this file (required for authentication)'
-            }
-          },
-          required: ['fileUrl', 'groupId']
-        }
-      },
-      {
-        name: 'convert_pdf_to_text',
-        description: 'Convert a previously downloaded PDF (via get_attachment or get_group_file) to plain text using pdftotext. Returns a preview and a lineCount — use search_resource_text on the same resourceId to find specific content instead of reading the whole document.',
+        name: 'convert_resource_to_text',
+        description: 'Convert a previously downloaded file (via get_file) to plain text — auto-detects PDF (pdftotext), DOCX (docx2txt), or XLSX/XLS (ssconvert, CSV output) from the file\'s content type. Returns a preview and a lineCount — use search_resource_text on the same resourceId to find specific content instead of reading the whole document.',
         annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
             resourceId: {
               type: 'string',
-              description: 'The resourceId returned by get_attachment or get_group_file'
-            }
-          },
-          required: ['resourceId']
-        }
-      },
-      {
-        name: 'convert_docx_to_text',
-        description: 'Convert a previously downloaded DOCX (via get_attachment or get_group_file) to plain text using docx2txt. Returns a preview and a lineCount — use search_resource_text on the same resourceId to find specific content instead of reading the whole document.',
-        annotations: READ_ONLY,
-        inputSchema: {
-          type: 'object',
-          properties: {
-            resourceId: {
-              type: 'string',
-              description: 'The resourceId returned by get_attachment or get_group_file'
-            }
-          },
-          required: ['resourceId']
-        }
-      },
-      {
-        name: 'convert_xlsx_to_text',
-        description: 'Convert a previously downloaded XLSX/XLS spreadsheet (via get_attachment or get_group_file) to CSV text using ssconvert (part of the gnumeric package). Returns a preview and a lineCount — use search_resource_text on the same resourceId to find specific content instead of reading the whole document.',
-        annotations: READ_ONLY,
-        inputSchema: {
-          type: 'object',
-          properties: {
-            resourceId: {
-              type: 'string',
-              description: 'The resourceId returned by get_attachment or get_group_file'
+              description: 'The resourceId returned by get_file'
             }
           },
           required: ['resourceId']
@@ -796,14 +706,14 @@ export class SpondCore {
       },
       {
         name: 'search_resource_text',
-        description: 'Search the converted text of a resource (from a convert_*_to_text tool) for a term, returning only matching lines instead of the whole document — use this instead of re-reading the full preview when looking for something specific.',
+        description: 'Search the converted text of a resource (from convert_resource_to_text) for a term, returning only matching lines instead of the whole document — use this instead of re-reading the full preview when looking for something specific.',
         annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
           properties: {
             resourceId: {
               type: 'string',
-              description: 'The resourceId returned by a convert_*_to_text tool'
+              description: 'The resourceId returned by convert_resource_to_text'
             },
             searchTerm: {
               type: 'string',
@@ -900,9 +810,12 @@ export class SpondCore {
     try {
       switch (toolName) {
         case 'get_events': {
-          const { query, ...eventParams } = params as SpondEventsQueryParams & { query?: string };
+          const { query, groupName, maxResults, ...rest } = params as SpondEventsQueryParams & { query?: string; groupName?: string; maxResults?: number };
+          const events = groupName
+            ? await this.getEventsByGroup(groupName, maxResults ?? 20, rest)
+            : await this.getEvents({ ...rest, ...(maxResults !== undefined ? { max: maxResults } : {}) });
           return {
-            data: applyQuery(await this.getEvents(eventParams), query),
+            data: applyQuery(events, query),
             type: ToolCallResultType.Success
           };
         }
@@ -946,28 +859,16 @@ export class SpondCore {
           };
         }
 
-        case 'get_events_by_group': {
-          const { groupName, maxResults = 20, query, ...filterParams } = params as {
-            groupName: string;
-            maxResults?: number;
-            includeComments?: boolean;
-            includeHidden?: boolean;
-            addProfileInfo?: boolean;
-            scheduled?: boolean;
-            order?: 'asc' | 'desc';
-            minEndTimestamp?: string;
-            maxEndTimestamp?: string;
-            query?: string;
-          };
-          requireParams(params, 'groupName');
-          return {
-            data: applyQuery(await this.getEventsByGroup(groupName, maxResults, filterParams), query),
-            type: ToolCallResultType.Success
-          };
-        }
-
         case 'get_posts': {
-          const { query, ...postParams } = params as SpondPostsQueryParams & { query?: string };
+          const { query, groupName, maxResults, ...rest } = params as SpondPostsQueryParams & { query?: string; groupName?: string; maxResults?: number };
+          const postParams = { ...rest, ...(maxResults !== undefined ? { max: maxResults } : {}) };
+          if (groupName) {
+            const groupId = await this.resolveGroupIdByName(groupName);
+            if (!groupId) {
+              return { data: applyQuery([], query), type: ToolCallResultType.Success };
+            }
+            postParams.groupId = groupId;
+          }
           return {
             data: applyQuery(await this.getPosts(postParams), query),
             type: ToolCallResultType.Success
@@ -1028,18 +929,6 @@ export class SpondCore {
           };
         }
 
-        case 'get_posts_by_group': {
-          const { groupName, maxResults = 50 } = params as { 
-            groupName: string; 
-            maxResults?: number; 
-          };
-          requireParams(params, 'groupName');
-          return {
-            data: await this.getPostsByGroup(groupName, maxResults),
-            type: ToolCallResultType.Success
-          };
-        }
-
         case 'get_groups': {
           const { query } = params as { query?: string };
           return {
@@ -1048,20 +937,28 @@ export class SpondCore {
           };
         }
 
-        case 'get_attachment': {
+        case 'get_my_members': {
+          const { query } = params as { query?: string };
+          return {
+            data: applyQuery(await this.getMyMembers(), query),
+            type: ToolCallResultType.Success
+          };
+        }
+
+        case 'get_file': {
           const { url, groupId } = params as {
             url: string;
             groupId: string;
           };
           requireParams(params, 'url', 'groupId');
           return {
-            data: await this.getAttachmentAsResource(url, groupId),
+            data: await this.getFileAsResource(url, groupId),
             type: ToolCallResultType.Success
           };
         }
 
         case 'get_group_files': {
-          const { groupId } = params as { 
+          const { groupId } = params as {
             groupId: string;
           };
           requireParams(params, 'groupId');
@@ -1071,41 +968,11 @@ export class SpondCore {
           };
         }
 
-        case 'get_group_file': {
-          const { fileUrl, groupId } = params as {
-            fileUrl: string;
-            groupId: string;
-          };
-          requireParams(params, 'fileUrl', 'groupId');
-          return {
-            data: await this.getGroupFileAsResource(fileUrl, groupId),
-            type: ToolCallResultType.Success
-          };
-        }
-
-        case 'convert_pdf_to_text': {
+        case 'convert_resource_to_text': {
           const { resourceId } = params as { resourceId: string };
           requireParams(params, 'resourceId');
           return {
-            data: await this.convertPdfToTextResource(resourceId),
-            type: ToolCallResultType.Success
-          };
-        }
-
-        case 'convert_docx_to_text': {
-          const { resourceId } = params as { resourceId: string };
-          requireParams(params, 'resourceId');
-          return {
-            data: await this.convertDocxToTextResource(resourceId),
-            type: ToolCallResultType.Success
-          };
-        }
-
-        case 'convert_xlsx_to_text': {
-          const { resourceId } = params as { resourceId: string };
-          requireParams(params, 'resourceId');
-          return {
-            data: await this.convertXlsxToTextResource(resourceId),
+            data: await this.convertResourceToText(resourceId),
             type: ToolCallResultType.Success
           };
         }

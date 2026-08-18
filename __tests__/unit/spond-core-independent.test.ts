@@ -22,33 +22,34 @@ describe('SpondCore Independent Unit Tests', () => {
     test('should return all expected tool definitions', () => {
       const tools = core.getToolDefinitions();
       
-      expect(tools).toHaveLength(21);
+      expect(tools).toHaveLength(17);
       expect(tools.map(t => t.name)).toContain('get_events');
       expect(tools.map(t => t.name)).toContain('get_upcoming_events');
       expect(tools.map(t => t.name)).toContain('search_events');
       expect(tools.map(t => t.name)).toContain('get_group_files');
-      expect(tools.map(t => t.name)).toContain('get_group_file');
-      expect(tools.map(t => t.name)).toContain('convert_pdf_to_text');
-      expect(tools.map(t => t.name)).toContain('convert_docx_to_text');
+      expect(tools.map(t => t.name)).toContain('get_file');
+      expect(tools.map(t => t.name)).toContain('convert_resource_to_text');
+      expect(tools.map(t => t.name)).toContain('get_my_members');
       expect(tools.map(t => t.name)).toContain('accept_event');
       expect(tools.map(t => t.name)).toContain('decline_event');
+      expect(tools.map(t => t.name)).not.toContain('get_attachment');
+      expect(tools.map(t => t.name)).not.toContain('get_group_file');
+      expect(tools.map(t => t.name)).not.toContain('convert_pdf_to_text');
+      expect(tools.map(t => t.name)).not.toContain('convert_docx_to_text');
+      expect(tools.map(t => t.name)).not.toContain('convert_xlsx_to_text');
+      expect(tools.map(t => t.name)).not.toContain('get_events_by_group');
+      expect(tools.map(t => t.name)).not.toContain('get_posts_by_group');
     });
 
     test('should have proper tool schema structure', () => {
       const tools = core.getToolDefinitions();
       const getEventsTool = tools.find(t => t.name === 'get_events');
-      
+
       expect(getEventsTool).toBeDefined();
       expect(getEventsTool!.description).toContain('Get Spond events with optional filtering parameters');
       expect(getEventsTool!.inputSchema.type).toBe('object');
-      expect(getEventsTool!.inputSchema.properties.max.default).toBe(20);
-    });
-
-    test('should default get_events_by_group maxResults to 20 (lowered from 50 to reduce response size)', () => {
-      const tools = core.getToolDefinitions();
-      const tool = tools.find(t => t.name === 'get_events_by_group');
-
-      expect(tool!.inputSchema.properties.maxResults.default).toBe(20);
+      expect(getEventsTool!.inputSchema.properties.maxResults.default).toBe(20);
+      expect(getEventsTool!.inputSchema.properties.groupName).toBeDefined();
     });
 
     test('should default search_all maxResults to 20 (lowered from 50 to reduce response size)', () => {
