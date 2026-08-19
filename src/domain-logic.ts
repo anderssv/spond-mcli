@@ -109,13 +109,24 @@ export enum AttendanceStatus {
 export enum RegistrationStatus {
   PENDING = 'pending',
   OPEN = 'open',
-  CLOSED = 'closed'
+  CLOSED = 'closed',
+  CANCELLED = 'cancelled'
 }
 
+// Shared across the CLI's agent help text and the MCP accept_event/decline_event
+// tool descriptions, so the explanation of registrationStatus can't drift between
+// the two interfaces the way it did before.
+export const REGISTRATION_STATUS_EXPLANATION = 'Only "open" can be responded to right now. "pending" means the invite hasn\'t gone out yet (see inviteTime), "closed" means the event expired, "cancelled" means the organizer cancelled it (see cancelledReason). Responding to a non-open event fails with an explanatory error.';
+
 export function calculateRegistrationStatus(
-  event: { inviteTime?: string | null; expired?: boolean },
+  event: { inviteTime?: string | null; expired?: boolean; cancelled?: boolean },
   currentTime: Date = new Date()
 ): RegistrationStatus {
+  // If event is cancelled, registration is cancelled regardless of other state
+  if (event.cancelled) {
+    return RegistrationStatus.CANCELLED;
+  }
+
   // If event is expired, registration is closed
   if (event.expired) {
     return RegistrationStatus.CLOSED;
@@ -134,4 +145,30 @@ export function calculateRegistrationStatus(
   } else {
     return RegistrationStatus.PENDING;
   }
+}
+
+const EVENT_RESPONSE_ERROR_MESSAGES: Record<string, string> = {
+  inviteNotSent: "This event isn't open for responses yet — its invite hasn't been sent out. It should become open closer to the event, matching its pending registration status."
+};
+
+const GENERIC_REGISTRATION_HINT = "Check the event's registration status — it may not be open for responses yet.";
+
+export function describeEventResponseError(rawError: string): string {
+  const jsonStart = rawError.indexOf('{');
+  if (jsonStart !== -1) {
+    try {
+      const body = JSON.parse(rawError.slice(jsonStart)) as { message?: unknown; errorKey?: unknown };
+      const errorKey = typeof body.errorKey === 'string' ? body.errorKey : undefined;
+      if (errorKey && EVENT_RESPONSE_ERROR_MESSAGES[errorKey]) {
+        return EVENT_RESPONSE_ERROR_MESSAGES[errorKey];
+      }
+      if (typeof body.message === 'string') {
+        return `${body.message}. ${GENERIC_REGISTRATION_HINT}`;
+      }
+    } catch {
+      // Not a JSON body — fall through to the generic hint below
+    }
+  }
+
+  return `${rawError}. ${GENERIC_REGISTRATION_HINT}`;
 }

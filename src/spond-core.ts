@@ -1,4 +1,4 @@
-import { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup, AttendanceStatus, calculateRegistrationStatus, resolveMyMembers, matchesSearchTerm, matchesFilename, isContentSearchable, getConverterCommand, FileResource, FileSearchResult } from './domain-types.js';
+import { SpondEvent, SpondEventsQueryParams, SpondPost, SpondPostsQueryParams, SpondGroup, AttendanceStatus, calculateRegistrationStatus, describeEventResponseError, REGISTRATION_STATUS_EXPLANATION, resolveMyMembers, matchesSearchTerm, matchesFilename, isContentSearchable, getConverterCommand, FileResource, FileSearchResult } from './domain-types.js';
 import { ISpondClient } from './spond-client-interface.js';
 import { convertFileToText } from './file-converter.js';
 import { createProcessWorkspaceDirSync, generateResourceId, resolveResourcePath } from './workspace-manager.js';
@@ -340,7 +340,7 @@ export class SpondCore {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       throw new CoreError(CoreErrorCode.InternalError,
-        `Failed to accept event: ${msg}. Check the event's registration status — it may not be open for responses yet.`);
+        `Failed to accept event: ${describeEventResponseError(msg)}`);
     }
   }
 
@@ -350,7 +350,7 @@ export class SpondCore {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       throw new CoreError(CoreErrorCode.InternalError,
-        `Failed to decline event: ${msg}. Check the event's registration status — it may not be open for responses yet.`);
+        `Failed to decline event: ${describeEventResponseError(msg)}`);
     }
   }
 
@@ -358,7 +358,7 @@ export class SpondCore {
     return [
       {
         name: 'get_events',
-        description: 'Get Spond events with optional filtering parameters. No date filtering is applied by default — results can include old/past events. For "what\'s coming up" queries, use get_upcoming_events instead, or set minEndTimestamp/order here explicitly. Only scheduled events are returned by default (scheduled=true) — set scheduled=false to include cancelled/unscheduled events.',
+        description: 'Get Spond events with optional filtering parameters. No date filtering is applied by default — results can include old/past events. For "what\'s coming up" queries, use get_upcoming_events instead, or set minEndTimestamp/order here explicitly. Cancelled events may still be returned (the scheduled param does not reliably exclude them) — check registrationStatus for "cancelled" and read cancelledReason.',
         annotations: READ_ONLY,
         inputSchema: {
           type: 'object',
@@ -748,7 +748,7 @@ export class SpondCore {
       },
       {
         name: 'accept_event',
-        description: 'Accept a Spond event for a specific member. IMPORTANT: Check the event\'s registrationStatus first — only events with status "open" can be responded to. Use "get event --include-members" to find the memberId from recipients.group.members[].',
+        description: `Accept a Spond event for a specific member. IMPORTANT: Check the event's registrationStatus first — ${REGISTRATION_STATUS_EXPLANATION} Use "get event --include-members" to find the memberId from recipients.group.members[].`,
         annotations: IDEMPOTENT_MUTATION,
         inputSchema: {
           type: 'object',
@@ -767,7 +767,7 @@ export class SpondCore {
       },
       {
         name: 'decline_event',
-        description: 'Decline a Spond event for a specific member. IMPORTANT: Check the event\'s registrationStatus first — only events with status "open" can be responded to. Use "get event --include-members" to find the memberId from recipients.group.members[].',
+        description: `Decline a Spond event for a specific member. IMPORTANT: Check the event's registrationStatus first — ${REGISTRATION_STATUS_EXPLANATION} Use "get event --include-members" to find the memberId from recipients.group.members[].`,
         annotations: IDEMPOTENT_MUTATION,
         inputSchema: {
           type: 'object',
@@ -1167,9 +1167,10 @@ export class SpondCore {
       location: event.location?.feature || event.location?.address || 'Not specified',
       description: event.description?.length > 50 ? event.description.substring(0, 50) + '...' : (event.description || 'No description'),
       registrationStatus,
-      inviteTime: event.inviteTime
+      inviteTime: event.inviteTime,
+      ...(event.cancelled ? { cancelledReason: event.cancelledReason } : {})
     };
-    
+
     if (childAttendanceStatus !== undefined) {
       return { ...summary, attendanceStatus: childAttendanceStatus };
     }

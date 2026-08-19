@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { parseArgs, isHelpFlag, USAGE, CliCommand } from './cli-args.js';
 import { SpondCore, CoreError } from './spond-core.js';
+import { REGISTRATION_STATUS_EXPLANATION } from './domain-types.js';
 import { getTokenWithFileFallback } from './token-config.js';
 import { buildSpondClient } from './client-factory.js';
 import { performBrowserLogin, performPasswordLogin } from './login.js';
@@ -37,11 +38,12 @@ requires pdftotext/docx2txt.
 
 Accept/decline an event:
   1. spond-mcli upcoming
-  2. spond-mcli my-members (memberIds for everyone you're a guardian for,
+  2. Check that event's registrationStatus. ${REGISTRATION_STATUS_EXPLANATION}
+  3. spond-mcli my-members (memberIds for everyone you're a guardian for,
      across all groups), or spond-mcli event <eventId> --include-members
      to look at just that event's recipients.group.members[]
      (memberId differs per group).
-  3. spond-mcli accept-event <eventId> <memberId>
+  4. spond-mcli accept-event <eventId> <memberId>
      spond-mcli decline-event <eventId> <memberId>
 
 MCP server: run 'spond-mcli mcp' to start it over stdio.

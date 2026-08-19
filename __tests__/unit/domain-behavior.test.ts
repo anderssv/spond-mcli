@@ -1,7 +1,8 @@
 import { describe, test, expect } from '@jest/globals';
-import { calculateRegistrationStatus, RegistrationStatus } from '../../src/domain-logic.js';
+import { calculateRegistrationStatus, RegistrationStatus, describeEventResponseError } from '../../src/domain-logic.js';
 import { SpondEventMother, SpondEventBuilder, SpondEventGroupMother, SpondGroupMother } from '../helpers/object-mothers.js';
 import { TestSpondClientBuilder } from '../helpers/test-spond-client-builder.js';
+import { SpondCore } from '../../src/spond-core.js';
 
 describe('Event Registration Domain Behavior', () => {
   describe('Registration Status Calculation', () => {
@@ -82,6 +83,118 @@ describe('Event Registration Domain Behavior', () => {
 
       // Then: Registration should be closed due to expiration
       expect(status).toBe(RegistrationStatus.CLOSED);
+    });
+
+    test('should show cancelled registration status when event is cancelled', () => {
+      // Given: A cancelled event
+      const cancelledEvent = SpondEventBuilder.anEvent()
+        .thatIsCancelled()
+        .build();
+      const currentTime = new Date();
+
+      // When: Registration status is calculated
+      const status = calculateRegistrationStatus(cancelledEvent, currentTime);
+
+      // Then: Registration should be cancelled
+      expect(status).toBe(RegistrationStatus.CANCELLED);
+    });
+
+    test('should prioritize cancelled over expired status', () => {
+      // Given: A cancelled event that is also expired
+      const cancelledExpiredEvent = SpondEventBuilder.anEvent()
+        .thatIsCancelled()
+        .thatIsExpired()
+        .build();
+      const currentTime = new Date();
+
+      // When: Registration status is calculated
+      const status = calculateRegistrationStatus(cancelledExpiredEvent, currentTime);
+
+      // Then: Registration should be cancelled, not closed
+      expect(status).toBe(RegistrationStatus.CANCELLED);
+    });
+
+    test('should prioritize cancelled over pending status', () => {
+      // Given: A cancelled event with a future invite time
+      const futureTime = new Date(Date.now() + 3600000);
+      const cancelledPendingEvent = SpondEventBuilder.anEvent()
+        .thatIsCancelled()
+        .withInviteTime(futureTime.toISOString())
+        .build();
+      const currentTime = new Date();
+
+      // When: Registration status is calculated
+      const status = calculateRegistrationStatus(cancelledPendingEvent, currentTime);
+
+      // Then: Registration should be cancelled, not pending
+      expect(status).toBe(RegistrationStatus.CANCELLED);
+    });
+
+    test('event summary should include cancelledReason when event is cancelled', async () => {
+      // Given: A core backed by a client with a cancelled event
+      const cancelledEvent = SpondEventBuilder.anEvent()
+        .thatIsCancelled('Not enough attendees')
+        .build();
+      const client = TestSpondClientBuilder.aClient()
+        .withEvents([cancelledEvent])
+        .build();
+      const core = new SpondCore(client);
+
+      // When: Events are fetched via the core
+      const events = await core.getEvents();
+
+      // Then: The summary should surface the cancellation reason
+      expect(events[0].registrationStatus).toBe(RegistrationStatus.CANCELLED);
+      expect((events[0] as any).cancelledReason).toBe('Not enough attendees');
+    });
+  });
+
+  describe('Event Response Error Messages', () => {
+    test('should return a friendly message for the inviteNotSent errorKey', () => {
+      // Given: The raw error text the API returns when the invite is not open yet
+      const rawError = 'Failed to send event response: HTTP 400: {"message":"Invitasjonen har ikke blitt sendt ut","errorCode":3004,"errorKey":"inviteNotSent"}';
+
+      // When: Describing the error
+      const description = describeEventResponseError(rawError);
+
+      // Then: A friendly, English explanation is returned instead of the raw JSON
+      expect(description).toBe("This event isn't open for responses yet — its invite hasn't been sent out. It should become open closer to the event, matching its pending registration status.");
+    });
+
+    test("should append a registration-status hint to the API's message for an unrecognized errorKey", () => {
+      // Given: A raw error with an errorKey we have no friendly translation for
+      const rawError = 'Failed to send event response: HTTP 400: {"message":"Something else went wrong","errorCode":9999,"errorKey":"somethingElse"}';
+
+      // When: Describing the error
+      const description = describeEventResponseError(rawError);
+
+      // Then: The API's own message is surfaced, without the JSON wrapper, plus a generic hint
+      expect(description).toBe("Something else went wrong. Check the event's registration status — it may not be open for responses yet.");
+    });
+
+    test('should append a registration-status hint when there is no JSON body', () => {
+      // Given: A raw error with no JSON body (e.g. a network failure)
+      const rawError = 'Failed to send event response: Network error';
+
+      // When: Describing the error
+      const description = describeEventResponseError(rawError);
+
+      // Then: The original text is kept, with a generic hint appended
+      expect(description).toBe("Failed to send event response: Network error. Check the event's registration status — it may not be open for responses yet.");
+    });
+
+    test('declineEvent should surface the friendly message when the invite is not open yet', async () => {
+      // Given: A core backed by a client whose next call fails with the raw inviteNotSent error
+      const client = TestSpondClientBuilder.aClient()
+        .thatFailsNextCall('Failed to send event response: HTTP 400: {"message":"Invitasjonen har ikke blitt sendt ut","errorCode":3004,"errorKey":"inviteNotSent"}')
+        .build();
+      const core = new SpondCore(client);
+
+      // When: Declining the event
+      const attempt = core.declineEvent('event-1', 'member-1');
+
+      // Then: The thrown error contains the friendly explanation, not the raw JSON
+      await expect(attempt).rejects.toThrow("This event isn't open for responses yet — its invite hasn't been sent out.");
     });
   });
 

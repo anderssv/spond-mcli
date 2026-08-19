@@ -1,4 +1,4 @@
-export { AttendanceStatus, RegistrationStatus, calculateRegistrationStatus, resolveMyMembers, MyMember, extractAccessToken, matchesSearchTerm, matchesFilename, isContentSearchable, getConverterCommand } from './domain-logic.js';
+export { AttendanceStatus, RegistrationStatus, calculateRegistrationStatus, describeEventResponseError, REGISTRATION_STATUS_EXPLANATION, resolveMyMembers, MyMember, extractAccessToken, matchesSearchTerm, matchesFilename, isContentSearchable, getConverterCommand } from './domain-logic.js';
 
 export interface FileResource {
   id: string;
@@ -40,6 +40,8 @@ export interface SpondEvent {
   inviteTime?: string | null;
   registered?: boolean;
   expired?: boolean;
+  cancelled?: boolean;
+  cancelledReason?: string;
   location?: {
     id: string;
     feature: string;

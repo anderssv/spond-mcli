@@ -329,6 +329,12 @@ export class SpondEventBuilder {
     return this;
   }
 
+  thatIsCancelled(reason?: string): SpondEventBuilder {
+    this.event.cancelled = true;
+    this.event.cancelledReason = reason;
+    return this;
+  }
+
   thatIsRegistered(): SpondEventBuilder {
     this.event.registered = true;
     return this;
